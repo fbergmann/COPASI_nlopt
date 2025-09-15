@@ -275,6 +275,13 @@ CCopasiMethod * CMethodFactory::create(const CTaskEnum::Task & taskType,
       case CTaskEnum::Method::timeSensLsoda:
         pMethod = new CTimeSensLsodaMethod(pParent, methodType, taskType);
         break;
+
+      case CTaskEnum::Method::RandomSearchMaster:
+      case CTaskEnum::Method::HybridGASA:
+      case CTaskEnum::Method::LSODA2:
+      case CTaskEnum::Method::analyticsMethod:
+      case CTaskEnum::Method::__SIZE:
+        break;
     }
 
   if (pMethod != NULL
@@ -488,6 +495,13 @@ CCopasiMethod * CMethodFactory::copy(const CCopasiMethod * pSrc, const CDataCont
 
       case CTaskEnum::Method::timeSensLsoda:
         pCopy = new CTimeSensLsodaMethod(*static_cast< const CTimeSensLsodaMethod * >(pSrc), pParent);
+        break;
+
+      case CTaskEnum::Method::RandomSearchMaster:
+      case CTaskEnum::Method::HybridGASA:
+      case CTaskEnum::Method::LSODA2:
+      case CTaskEnum::Method::analyticsMethod:
+      case CTaskEnum::Method::__SIZE:
         break;
     }
 
