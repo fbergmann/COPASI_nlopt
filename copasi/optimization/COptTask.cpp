@@ -63,6 +63,9 @@ const CTaskEnum::Method COptTask::ValidMethods[]  =
   CTaskEnum::Method::SimulatedAnnealing,
   CTaskEnum::Method::SteepestDescent,
   CTaskEnum::Method::TruncatedNewton,
+#ifdef COPASI_USE_NLOPT
+  CTaskEnum::Method::NLopt,
+#endif // COPASI_USE_NLOPT
   CTaskEnum::Method::UnsetMethod
 };
 

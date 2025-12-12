@@ -109,7 +109,10 @@ const CEnumAnnotation< std::string, CTaskEnum::Method > CTaskEnum::MethodName(
   "Linear Noise Approximation",
   "Analytics Finder",
   "LSODA Sensitivities"
-});
+#ifdef COPASI_USE_NLOPT
+    , "NLopt"
+#endif // COPASI_USE_NLOPT
+  });
 
 const CEnumAnnotation< std::string, CTaskEnum::Method > CTaskEnum::MethodXML(
 {
@@ -165,4 +168,7 @@ const CEnumAnnotation< std::string, CTaskEnum::Method > CTaskEnum::MethodXML(
   "LinearNoiseApproximation",
   "analyticsMethod",
   "Sensitivities(LSODA)"
-});
+#ifdef COPASI_USE_NLOPT
+   , "NLopt"
+#endif // COPASI_USE_NLOPT
+  });

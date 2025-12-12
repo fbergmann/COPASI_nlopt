@@ -35,6 +35,9 @@
 #include "copasi/optimization/COptMethodTruncatedNewton.h"
 #include "copasi/optimization/COptMethodNL2SOL.h"
 #include "copasi/optimization/CRandomSearch.h"
+#ifdef COPASI_USE_NLOPT
+#include "copasi/optimization/COptMethodNLopt.h"
+#endif // COPASI_USE_NLOPT
 // #include "oscillation/COscillationMethod.h"
 #include "copasi/scan/CScanMethod.h"
 #include "copasi/sensitivities/CSensMethod.h"
@@ -154,6 +157,12 @@ CCopasiMethod * CMethodFactory::create(const CTaskEnum::Task & taskType,
       case CTaskEnum::Method::TruncatedNewton:
         pMethod = new COptMethodTruncatedNewton(pParent, methodType, taskType);
         break;
+
+#ifdef COPASI_USE_NLOPT
+      case CTaskEnum::Method::NLopt:
+        pMethod = new COptMethodNLopt(pParent, methodType, taskType);
+        break;
+#endif // COPASI_USE_NLOPT
 
       case CTaskEnum::Method::Newton:
         pMethod = new CNewtonMethod(pParent, methodType, taskType);
@@ -362,6 +371,12 @@ CCopasiMethod * CMethodFactory::copy(const CCopasiMethod * pSrc, const CDataCont
       case CTaskEnum::Method::TruncatedNewton:
         pCopy = new COptMethodTruncatedNewton(*static_cast< const COptMethodTruncatedNewton * >(pSrc), pParent);
         break;
+
+#ifdef COPASI_USE_NLOPT
+      case CTaskEnum::Method::NLopt:
+        pCopy = new COptMethodNLopt(*static_cast< const COptMethodNLopt * >(pSrc), pParent);
+        break;
+#endif // COPASI_USE_NLOPT
 
       case CTaskEnum::Method::Newton:
         pCopy = new CNewtonMethod(*static_cast< const CNewtonMethod * >(pSrc), pParent);

@@ -13,6 +13,8 @@
 
 #include <string>
 
+#include <copasi/config.h>
+
 #include "../core/CEnumAnnotation.h"
 
 class CTaskEnum
@@ -110,6 +112,9 @@ public:
     linearNoiseApproximation,
     analyticsMethod,
     timeSensLsoda,
+#ifdef COPASI_USE_NLOPT
+    NLopt,
+#endif // COPASI_USE_NLOPT
     __SIZE
   };
 
