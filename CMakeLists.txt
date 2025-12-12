@@ -480,6 +480,12 @@ endif()
 # actually iconv is only needed on BSD like systems
 find_package(ICONV)
 
+# optionally link against nlopt
+option(COPASI_USE_NLOPT "Use NLopt for optimization" OFF)
+if (COPASI_USE_NLOPT)
+find_package(NLopt REQUIRED)
+endif()
+
 
 if(BUILD_GUI)
   set(OpenGL_GL_PREFERENCE LEGACY)

@@ -44,6 +44,7 @@
 
 #cmakedefine COPASI_USE_RAPTOR
 #cmakedefine COPASI_USE_CROSSGUID
+#cmakedefine COPASI_USE_NLOPT
 
 // ui options
 

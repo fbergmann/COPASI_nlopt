@@ -283,6 +283,10 @@ else()
     ${CPUFEATURES_LIBRARY}
   )
   
+  if (COPASI_USE_NLOPT)
+    target_link_libraries(libCOPASISE-core ${NLOPT_LIBRARIES})
+  endif()
+
   if (COPASI_USE_CROSSGUID)
     target_link_libraries(libCOPASISE-core ${CROSSGUID_LIBRARY})
   endif()
@@ -328,6 +332,10 @@ target_link_libraries(libCOPASISE-static
 
   if (COPASI_USE_RAPTOR)
     target_link_libraries(libCOPASISE-static RAPTOR::RAPTOR)
+  endif()
+
+  if (COPASI_USE_NLOPT)
+    target_link_libraries(libCOPASISE-static ${NLOPT_LIBRARIES})
   endif()
 
  if (EXTRA_LIBS)
@@ -420,6 +428,10 @@ if(ENABLE_LIBCOPASISE_SHARED)
 
   if (COPASI_USE_RAPTOR)
     target_link_libraries(libCOPASISE-shared RAPTOR::RAPTOR)
+  endif()
+
+  if (COPASI_USE_NLOPT)
+    target_link_libraries(libCOPASISE-shared ${NLOPT_LIBRARIES})
   endif()
 
   target_link_libraries(libCOPASISE-shared ${LIBSBML_LIBRARY_NAME} EXPAT::EXPAT ${CLAPACK_LIBRARIES})
