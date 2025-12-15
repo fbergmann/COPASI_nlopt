@@ -60,11 +60,15 @@ COptMethodNLopt::~COptMethodNLopt()
 
 void COptMethodNLopt::initObjects()
 {
+  mpNloptMethod = assertParameter("NLopt Method", CCopasiParameter::Type::STRING, NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD]);
+  getParameter("NLopt Method")->setValidValues(NLOptMethods);
+
   addObjectReference("Current Iteration", mCurrentIteration, CDataObject::ValueInt);
 
   assertParameter("Number of Iterations", CCopasiParameter::Type::UINT, (unsigned C_INT32) 200);
-  mpNloptMethod = assertParameter("NLopt Method", CCopasiParameter::Type::STRING, NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD]);
-  getParameter("NLopt Method")->setValidValues(NLOptMethods);
+
+  mpRtolObjective = assertParameter("Relative Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+  mpRtolParameters = assertParameter("Relative Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);  
 }
 
 /**
@@ -125,6 +129,41 @@ bool COptMethodNLopt::initialize()
   
   // Evaluate the objective function
   C_FLOAT64 value = method->evaluate(COptMethod::EvaluationPolicy::Constraints);
+
+
+  // if gradient is present, compute it (not implemented here)
+  if (grad != nullptr)
+    {
+      // Calculate the gradient
+      for (int i = 0; i < n && method->proceed(); i++)
+        {
+          COptItem & OptItem = *optItems[i];
+
+          if (x[i] != 0.0)
+            {
+              C_FLOAT64 X = x[i] * 1.001;
+              OptItem.setItemValue(X, COptItem::CheckPolicyFlag::None);
+              grad[i] = (method->evaluate(EvaluationPolicyFlag::All) - value) / (x[i] * 0.001);
+            }
+          else
+            {
+              // why use 1e-7? shouldn't this be epsilon, or something like that?
+              C_FLOAT64 X = 1e-7;
+              OptItem.setItemValue(X, COptItem::CheckPolicyFlag::None);
+              grad[i] = (method->evaluate(EvaluationPolicyFlag::All) - value) / 1e-7;
+
+              if (method->mLogVerbosity > 2)
+                {
+                  std::ostringstream auxStream;
+                  auxStream << "Calculating gradient for zero valued parameter " << i << ", using 1e-7, results in " << grad[i] << ".";
+                  method->mMethodLog.enterLogEntry(COptLogEntry(auxStream.str()));
+                }
+            }
+
+          double val = x[i];
+          OptItem.setItemValue(val, COptItem::CheckPolicyFlag::None);
+        }
+    }
 
   method->mValue = value;
 
@@ -225,11 +264,13 @@ bool COptMethodNLopt::optimise()
       // Set stopping criteria
       opt.set_maxeval(mIterations);
       
-      // Optional: set relative tolerance on function value
-      // opt.set_ftol_rel(1e-6);
+      // set relative tolerance on function value
+      if (std::isfinite(*mpRtolObjective))
+      opt.set_ftol_rel(*mpRtolObjective);
       
-      // Optional: set relative tolerance on optimization parameters
-      // opt.set_xtol_rel(1e-6);
+      // set relative tolerance on optimization parameters
+      if (std::isfinite(*mpRtolParameters))
+      opt.set_xtol_rel(*mpRtolParameters);
       
       // Run the optimization
       double minf;

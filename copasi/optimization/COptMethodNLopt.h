@@ -85,6 +85,9 @@
     */
    size_t mVariableSize;
 
+   double * mpRtolObjective;
+   double * mpRtolParameters;
+
    std::string * mpNloptMethod;
 
    
