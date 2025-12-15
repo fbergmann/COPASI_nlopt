@@ -115,6 +115,7 @@ bool COptMethodNLopt::optimise()
       )
     );
 
+  // check initial guess
   for (j = 0; j < mVariableSize; j++)
     {
       C_FLOAT64 & mut = mIndividual[j];
@@ -127,7 +128,8 @@ bool COptMethodNLopt::optimise()
 
   if (!pointInParameterDomain && (mLogVerbosity > 0))
     mMethodLog.enterLogEntry(COptLogEntry("Initial point outside parameter domain."));
-
+  
+  // evaluate intitial guess and set as best solution
   mValue = evaluate(EvaluationPolicy::Constraints);
   setSolution(mValue, mIndividual, true);
 
@@ -139,12 +141,13 @@ bool COptMethodNLopt::optimise()
   //opt.set_min_objective(f, mVariableSize);
 
 
-
+  // loop over all iterations
   for (mCurrentIteration = 1; mCurrentIteration < mIterations && proceed(); mCurrentIteration++)
     {
       LastIndividual = mIndividual;
       const std::vector< COptItem * > & OptItemList = mProblemContext.active()->getOptItemList(true);
 
+      // change to new guess
       for (j = 0; j < mVariableSize && proceed(); j++)
         {
           // CALCULATE lower and upper bounds
@@ -157,15 +160,17 @@ bool COptMethodNLopt::optimise()
             break;
         }
 
+      // if cancelled stop
       if (j < mVariableSize)
         {
           mIndividual = LastIndividual;
           continue;
         }
 
+      // otherwise evaluate
       mValue = evaluate(EvaluationPolicy::Constraints);
 
-      // COMPARE
+      // report better solution if found
       if (mValue < getBestValue())
         setSolution(mValue, mIndividual, true);
 
