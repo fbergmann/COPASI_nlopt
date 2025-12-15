@@ -1,5 +1,3 @@
-
-
 #include "copasi/copasi.h"
 
 #ifdef COPASI_USE_NLOPT
@@ -18,6 +16,15 @@
 
 #include <nlopt.hpp>
 
+const CEnumAnnotation< std::string, COptMethodNLopt::NLoptMethodType > COptMethodNLopt::NLOptMethods(
+  {
+    "PRAXIS (PRincipal AXIS)",
+    "Nelder-Mead Simplex",
+    "Sbplx (based on Subplex)",
+    "ISRES (Improved Stochastic Ranking Evolution Strategy)",
+    "Low-storage BFGS"
+  });
+
 COptMethodNLopt::COptMethodNLopt(const CDataContainer * pParent,
                              const CTaskEnum::Method & methodType,
                              const CTaskEnum::Task & taskType)
@@ -26,13 +33,9 @@ COptMethodNLopt::COptMethodNLopt(const CDataContainer * pParent,
   , mCurrentIteration(0)
   , mIndividual()
   , mValue(std::numeric_limits< C_FLOAT64 >::quiet_NaN())
-  , mpRandom(NULL)
   , mVariableSize(0)
 {
-  assertParameter("Number of Iterations", CCopasiParameter::Type::UINT, (unsigned C_INT32) 100000);
-  assertParameter("Random Number Generator", CCopasiParameter::Type::UINT, (unsigned C_INT32) CRandom::mt19937, eUserInterfaceFlag::editable);
-  assertParameter("Seed", CCopasiParameter::Type::UINT, (unsigned C_INT32) 0, eUserInterfaceFlag::editable);
-
+  
   initObjects();
 }
 
@@ -43,7 +46,6 @@ COptMethodNLopt::COptMethodNLopt(const COptMethodNLopt & src,
   , mCurrentIteration(src.mCurrentIteration)
   , mIndividual(src.mIndividual)
   , mValue(src.mValue)
-  , mpRandom(NULL)
   , mVariableSize(src.mVariableSize)
 {initObjects();}
 
@@ -59,6 +61,10 @@ COptMethodNLopt::~COptMethodNLopt()
 void COptMethodNLopt::initObjects()
 {
   addObjectReference("Current Iteration", mCurrentIteration, CDataObject::ValueInt);
+
+  assertParameter("Number of Iterations", CCopasiParameter::Type::UINT, (unsigned C_INT32) 200);
+  mpNloptMethod = assertParameter("NLopt Method", CCopasiParameter::Type::STRING, NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD]);
+  getParameter("NLopt Method")->setValidValues(NLOptMethods);
 }
 
 /**
@@ -74,22 +80,62 @@ bool COptMethodNLopt::initialize()
 
   mIterations = getValue< unsigned C_INT32 >("Number of Iterations");
 
-  pdelete(mpRandom);
-
-  if (getParameter("Random Number Generator") != NULL && getParameter("Seed") != NULL)
-    {
-      mpRandom = CRandom::createGenerator((CRandom::Type) getValue< unsigned C_INT32 >("Random Number Generator"),
-                                          getValue< unsigned C_INT32 >("Seed"));
-    }
-  else
-    {
-      mpRandom = CRandom::createGenerator();
-    }
-
   mVariableSize = mProblemContext.active()->getOptItemList(true).size();
   mIndividual.resize(mVariableSize);
 
   return true;
+}
+
+/**
+ * Objective function wrapper for NLopt
+ * This static function is called by NLopt and evaluates the objective function
+ */
+/*static*/ double COptMethodNLopt::nlopt_objective_function(unsigned n, const double * x, double * grad, void * data)
+{
+  // Cast the data pointer back to COptMethodNLopt
+  COptMethodNLopt *method = static_cast<COptMethodNLopt *>(data);
+  
+  // Get the optimization problem context
+  COptProblem *problem =  method->mProblemContext.active();
+  const std::vector<COptItem *> &optItems = problem->getOptItemList(true);
+  
+  // Set the parameter values from x
+  bool validPoint = true;
+  for (unsigned i = 0; i < n; i++)
+    {
+      double value = x[i];
+      method->mIndividual[i] = value;
+      validPoint &= optItems[i]->setItemValue(value, COptItem::CheckPolicyFlag::All);
+    }
+  
+  // If point is invalid, return a large penalty value
+  if (!validPoint)
+    {
+      return std::numeric_limits<double>::max();
+    }
+
+  if (!method->proceed())
+  {
+    // Tell NLopt to stop by returning a special value
+    // NLopt expects the objective function to return a special value to signal forced stop.
+    // For most algorithms, returning "NAN" (not-a-number) indicates forced termination (nlopt_result = NLOPT_FORCED_STOP).
+    return std::numeric_limits<double>::quiet_NaN();
+
+  }
+  
+  // Evaluate the objective function
+  C_FLOAT64 value = method->evaluate(COptMethod::EvaluationPolicy::Constraints);
+
+  method->mValue = value;
+
+  method->mpParentTask->output(COutputInterface::MONITORING);
+  
+  if (value < method->getBestValue())
+    {
+      method->setSolution(value, method->mIndividual, true);
+    }
+
+  return value;
 }
 
 /**
@@ -111,7 +157,7 @@ bool COptMethodNLopt::optimise()
     mMethodLog.enterLogEntry(
       COptLogEntry(
         "Algorithm started.",
-        "For more information about this method see: http://copasi.org/Support/User_Manual/Methods/Optimization_Methods/Random_Search/"
+        "For more information about this method see: http://copasi.org/Support/User_Manual/Methods/Optimization_Methods/NLopt/"
       )
     );
 
@@ -133,56 +179,119 @@ bool COptMethodNLopt::optimise()
   mValue = evaluate(EvaluationPolicy::Constraints);
   setSolution(mValue, mIndividual, true);
 
-  CVector< C_FLOAT64 > LastIndividual;
-
-
-  // test whether nlopt can be called
-  nlopt::opt opt(nlopt::LD_MMA, mVariableSize);
-  //opt.set_min_objective(f, mVariableSize);
-
-
-  // loop over all iterations
-  for (mCurrentIteration = 1; mCurrentIteration < mIterations && proceed(); mCurrentIteration++)
+  // Set up NLopt optimizer
+  try
     {
-      LastIndividual = mIndividual;
-      const std::vector< COptItem * > & OptItemList = mProblemContext.active()->getOptItemList(true);
+      nlopt::algorithm alg = nlopt::LN_NELDERMEAD;
+      if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD])
+        alg = nlopt::LN_NELDERMEAD;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::PRAXIS])
+        alg = nlopt::LN_PRAXIS;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::SBPLX])
+        alg = nlopt::LN_SBPLX;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::ISRES])
+        alg = nlopt::GN_ISRES;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::LBFGS])
+        alg = nlopt::LD_LBFGS;
+      
 
-      // change to new guess
-      for (j = 0; j < mVariableSize && proceed(); j++)
+      nlopt::opt opt(alg, mVariableSize);
+
+      if (mLogVerbosity > 0)
+        mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
+
+
+      // Set lower and upper bounds
+      std::vector<double> lower_bounds(mVariableSize);
+      std::vector<double> upper_bounds(mVariableSize);
+      std::vector<double> initial_values(mVariableSize);
+      
+      const std::vector<COptItem *> &OptItemList = mProblemContext.active()->getOptItemList(true);
+      
+      for (j = 0; j < mVariableSize; j++)
         {
-          // CALCULATE lower and upper bounds
-          COptItem & OptItem = *OptItemList[j];
-          C_FLOAT64 & mut = mIndividual[j];
-
-          mut = OptItem.getRandomValue(mpRandom);
-
-          if (!OptItem.setItemValue(mut, COptItem::CheckPolicyFlag::All))
-            break;
+          COptItem &OptItem = *OptItemList[j];
+          lower_bounds[j] = *OptItem.getLowerBoundValue();
+          upper_bounds[j] = *OptItem.getUpperBoundValue();
+          initial_values[j] = mIndividual[j];
         }
-
-      // if cancelled stop
-      if (j < mVariableSize)
+      
+      opt.set_lower_bounds(lower_bounds);
+      opt.set_upper_bounds(upper_bounds);
+      
+      // Set the objective function
+      opt.set_min_objective(nlopt_objective_function, this);
+      
+      // Set stopping criteria
+      opt.set_maxeval(mIterations);
+      
+      // Optional: set relative tolerance on function value
+      // opt.set_ftol_rel(1e-6);
+      
+      // Optional: set relative tolerance on optimization parameters
+      // opt.set_xtol_rel(1e-6);
+      
+      // Run the optimization
+      double minf;
+      nlopt::result result = opt.optimize(initial_values, minf);
+      
+      // Update the solution with NLopt's result
+      for (j = 0; j < mVariableSize; j++)
         {
-          mIndividual = LastIndividual;
-          continue;
+          mIndividual[j] = initial_values[j];
         }
-
-      // otherwise evaluate
-      mValue = evaluate(EvaluationPolicy::Constraints);
-
-      // report better solution if found
-      if (mValue < getBestValue())
-        setSolution(mValue, mIndividual, true);
-
+      
+      mValue = minf;
+      setSolution(mValue, mIndividual, true);
+      
+      // Get the number of evaluations performed
+      mCurrentIteration = opt.get_numevals();
+      
+      // Log the result
+      if (mLogVerbosity > 0)
+        {
+          std::string resultMsg;
+          switch (result)
+            {
+              case nlopt::SUCCESS:
+                resultMsg = "Generic success";
+                break;
+              case nlopt::STOPVAL_REACHED:
+                resultMsg = "Stop value reached";
+                break;
+              case nlopt::FTOL_REACHED:
+                resultMsg = "Function tolerance reached";
+                break;
+              case nlopt::XTOL_REACHED:
+                resultMsg = "Parameter tolerance reached";
+                break;
+              case nlopt::MAXEVAL_REACHED:
+                resultMsg = "Maximum evaluations reached";
+                break;
+              case nlopt::MAXTIME_REACHED:
+                resultMsg = "Maximum time reached";
+                break;
+              default:
+                resultMsg = "Optimization stopped";
+                break;
+            }
+          
+          mMethodLog.enterLogEntry(
+            COptLogEntry("Algorithm finished.",
+                         resultMsg + ". Terminated after " + std::to_string(mCurrentIteration) + " evaluations."));
+        }
+      
       mpParentTask->output(COutputInterface::MONITORING);
+      
+      return true;
     }
-
-  if (mLogVerbosity > 0)
-    mMethodLog.enterLogEntry(
-      COptLogEntry("Algorithm finished.",
-                   "Terminated after " + std::to_string(mCurrentIteration) + " of " + std::to_string(mIterations) + " iterations."));
-
-  return true;
+  catch (std::exception &e)
+    {
+      if (mLogVerbosity > 0)
+        mMethodLog.enterLogEntry(COptLogEntry("NLopt error", e.what()));
+      
+      return false;
+    }
 }
 
 unsigned C_INT32 COptMethodNLopt::getMaxLogVerbosity() const

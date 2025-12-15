@@ -78,18 +78,29 @@
    /**
     * array of values of objective function f/ individuals
     */
-   C_FLOAT64 mValue;
- 
-   /**
-    * a pointer to the randomnumber generator.
-    */
-   CRandom * mpRandom {NULL};
+   C_FLOAT64 mValue; 
  
    /**
     * *** Perhaps this is actually not needed ****number of parameters
     */
    size_t mVariableSize;
- 
+
+   std::string * mpNloptMethod;
+
+   
+  enum NLoptMethodType
+   {
+     PRAXIS = 0,
+     NELDER_MEAD,
+     SBPLX,
+     ISRES,
+     LBFGS,
+     __SIZE
+   };
+
+   static const CEnumAnnotation< std::string, NLoptMethodType > NLOptMethods;
+
+
  public:
    /**
     * Specific constructor
@@ -131,6 +142,12 @@
    const CVector< C_FLOAT64 > * getBestParameters() const override;
  
    const CVector< C_FLOAT64 > * getCurrentParameters() const override;
+
+   private:
+   /**
+    * The objective function for nlopt
+    */
+    static double nlopt_objective_function(unsigned n, const double * x, double * grad, void * data);
  };
  #endif // COPASI_USE_NLOPT
 
