@@ -224,8 +224,11 @@ C_INT COptMethodNL2SOL::calcr(integer *n, integer *p, doublereal *x, integer *nf
 
   urparm[0] = evaluate(EvaluationPolicyFlag::All);
 
+  mCurrent = CVectorCore< C_FLOAT64 >(mVariableSize, x);
+  mEvaluationValue = urparm[0];
+
   if (urparm[0] < getBestValue())
-    setSolution(urparm[0], CVectorCore< C_FLOAT64 >(mVariableSize, x), true);
+    setSolution(urparm[0], mCurrent, true);
 
   mpParentTask->output(COutputInterface::MONITORING);
 
