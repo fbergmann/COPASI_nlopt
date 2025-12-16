@@ -22,7 +22,10 @@ const CEnumAnnotation< std::string, COptMethodNLopt::NLoptMethodType > COptMetho
     "Nelder-Mead Simplex",
     "Sbplx (based on Subplex)",
     "ISRES (Improved Stochastic Ranking Evolution Strategy)",
-    "Low-storage BFGS"
+    "Low-storage BFGS",
+    "Truncated Newton",
+    "Truncated Newton Restart",
+    "Truncated Newton Preconditioned"
   });
 
 COptMethodNLopt::COptMethodNLopt(const CDataContainer * pParent,
@@ -232,6 +235,12 @@ bool COptMethodNLopt::optimise()
         alg = nlopt::GN_ISRES;
       else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::LBFGS])
         alg = nlopt::LD_LBFGS;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON])
+        alg = nlopt::LD_TNEWTON;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_RESTART])
+        alg = nlopt::LD_TNEWTON_RESTART;
+      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_PRECOND])
+        alg = nlopt::LD_TNEWTON_PRECOND;
       
 
       nlopt::opt opt(alg, mVariableSize);
