@@ -18,14 +18,32 @@
 
 const CEnumAnnotation< std::string, COptMethodNLopt::NLoptMethodType > COptMethodNLopt::NLOptMethods(
   {
+    // global
+    "DIRECT (Dividing RECTangles)",
+    "DIRECTL (DIRECT with Local Biasing)",
+    "CRS (Controlled Random Search)",
+    "MLSL (Multi-Level Single Linkage)",
+    "MLSL_LDS (Multi-Level Single Linkage with Low Discrepancy Sampling)",
+    "StoGO (Stochastic Global Optimization)",
+    "AGS (Adaptive Global Search)",
+    "ISRES (Improved Stochastic Ranking Evolution Strategy)",
+    "ESCH (evolutionary algorithm)",
+    // local derivative-free
+    "COBYLA (Constrained Optimization BY Linear Approximations)",
+    "BOBYQA",
+    "NEWUOA+",
     "PRAXIS (PRincipal AXIS)",
     "Nelder-Mead Simplex",
     "Sbplx (based on Subplex)",
-    "ISRES (Improved Stochastic Ranking Evolution Strategy)",
+    // local gradient-based
+    "MMA (Method of Moving Asymptotes)",
+    "SLSQP (Sequential Least Squares Programming)",
     "Low-storage BFGS",
     "Truncated Newton",
     "Truncated Newton Restart",
-    "Truncated Newton Preconditioned"
+    "Truncated Newton Preconditioned",
+    // hybrid
+    "AUGLAG (Augmented Lagrangian algorithm)",
   });
 
 COptMethodNLopt::COptMethodNLopt(const CDataContainer * pParent,
@@ -68,10 +86,15 @@ void COptMethodNLopt::initObjects()
 
   addObjectReference("Current Iteration", mCurrentIteration, CDataObject::ValueInt);
 
-  assertParameter("Number of Iterations", CCopasiParameter::Type::UINT, (unsigned C_INT32) 200);
-
+  assertParameter("Number of Iterations", CCopasiParameter::Type::UINT, (unsigned C_INT32) 2000);
+  
   mpRtolObjective = assertParameter("Relative Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
   mpRtolParameters = assertParameter("Relative Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);  
+  
+  assertParameter("Population Size", CCopasiParameter::Type::UINT, (unsigned C_INT32) 0);
+
+  assertParameter("Local Optimization Algorithm", CCopasiParameter::Type::STRING, NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD]);
+  getParameter("Local Optimization Algorithm")->setValidValues(NLOptMethods);
 }
 
 /**
@@ -89,6 +112,8 @@ bool COptMethodNLopt::initialize()
 
   mVariableSize = mProblemContext.active()->getOptItemList(true).size();
   mIndividual.resize(mVariableSize);
+
+  mPopulationSize = getValue< unsigned C_INT32 >("Population Size");
 
   return true;
 }
@@ -180,6 +205,60 @@ bool COptMethodNLopt::initialize()
   return value;
 }
 
+
+nlopt::algorithm COptMethodNLopt::methodToAlgorithm(const std::string & method)
+{
+  nlopt::algorithm alg = nlopt::LN_NELDERMEAD;
+  if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD])
+    alg = nlopt::LN_NELDERMEAD;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::PRAXIS])
+    alg = nlopt::LN_PRAXIS;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::SBPLX])
+    alg = nlopt::LN_SBPLX;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ISRES])
+    alg = nlopt::GN_ISRES;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::LBFGS])
+    alg = nlopt::LD_LBFGS;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON])
+    alg = nlopt::LD_TNEWTON;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_RESTART])
+    alg = nlopt::LD_TNEWTON_RESTART;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_PRECOND])
+    alg = nlopt::LD_TNEWTON_PRECOND;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::COBYLA])
+    alg = nlopt::LN_COBYLA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::BOBYQA])
+    alg = nlopt::LN_BOBYQA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::NEWUOA])
+    alg = nlopt::LN_NEWUOA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MMA])
+    alg = nlopt::LD_MMA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::SLSQP])
+    alg = nlopt::LD_SLSQP;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT])
+    alg = nlopt::GN_DIRECT;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECTL])
+    alg = nlopt::GN_DIRECT_L;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::CRS])
+    alg = nlopt::GN_CRS2_LM;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::StoGO])
+    alg = nlopt::GD_STOGO;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::AGS])
+    alg = nlopt::GN_AGS;
+
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MLSL])
+    alg = nlopt::GN_MLSL;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MLSL_LDS])
+    alg = nlopt::GN_MLSL_LDS;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::AUGLAG])
+    alg = nlopt::AUGLAG;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ESCH])
+    alg = nlopt::GN_ESCH;
+
+
+  return alg;
+}
+
 /**
  * Optimizer Function
  * Returns: nothing
@@ -224,25 +303,7 @@ bool COptMethodNLopt::optimise()
   // Set up NLopt optimizer
   try
     {
-      nlopt::algorithm alg = nlopt::LN_NELDERMEAD;
-      if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD])
-        alg = nlopt::LN_NELDERMEAD;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::PRAXIS])
-        alg = nlopt::LN_PRAXIS;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::SBPLX])
-        alg = nlopt::LN_SBPLX;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::ISRES])
-        alg = nlopt::GN_ISRES;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::LBFGS])
-        alg = nlopt::LD_LBFGS;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON])
-        alg = nlopt::LD_TNEWTON;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_RESTART])
-        alg = nlopt::LD_TNEWTON_RESTART;
-      else if (*mpNloptMethod == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_PRECOND])
-        alg = nlopt::LD_TNEWTON_PRECOND;
-      
-
+      auto alg = methodToAlgorithm(*mpNloptMethod);
       nlopt::opt opt(alg, mVariableSize);
 
       if (mLogVerbosity > 0)
@@ -272,6 +333,10 @@ bool COptMethodNLopt::optimise()
       
       // Set stopping criteria
       opt.set_maxeval(mIterations);
+
+      // set population size if applicable
+      if (mPopulationSize > 0)
+        opt.set_population(mPopulationSize);
       
       // set relative tolerance on function value
       if (std::isfinite(*mpRtolObjective))

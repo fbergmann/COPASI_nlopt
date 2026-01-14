@@ -34,6 +34,8 @@
  
 #ifdef COPASI_USE_NLOPT
 
+#  include <nlopt.hpp>
+
  class COptMethodNLopt : public COptMethod
  {
    // Operations
@@ -88,19 +90,44 @@
    double * mpRtolObjective;
    double * mpRtolParameters;
 
+   /**
+    * population size
+    */
+   unsigned C_INT32 mPopulationSize;
+
    std::string * mpNloptMethod;
 
    
   enum NLoptMethodType
    {
-     PRAXIS = 0,
+    // global
+     DIRECT = 0,
+     DIRECTL,
+     CRS,
+     MLSL,
+     MLSL_LDS,
+     StoGO,
+     AGS,
+     ISRES,
+     ESCH,
+     // local derivative free
+     COBYLA,
+     BOBYQA,
+     NEWUOA,
+     PRAXIS,
      NELDER_MEAD,
      SBPLX,
-     ISRES,
+     // local gradient based
+     MMA,
+     SLSQP,
      LBFGS,
      TRUNCATED_NEWTON,
      TRUNCATED_NEWTON_RESTART,
      TRUNCATED_NEWTON_PRECOND,
+     // hybrid
+     AUGLAG,
+     
+
      __SIZE
    };
 
@@ -154,6 +181,8 @@
     * The objective function for nlopt
     */
     static double nlopt_objective_function(unsigned n, const double * x, double * grad, void * data);
+
+    static nlopt::algorithm methodToAlgorithm(const std::string & method);
  };
  #endif // COPASI_USE_NLOPT
 
