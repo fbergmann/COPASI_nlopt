@@ -97,6 +97,8 @@
 
    std::string * mpNloptMethod;
 
+   std::string * mpLocalMethod;
+
    
   enum NLoptMethodType
    {
@@ -182,7 +184,7 @@
     */
     static double nlopt_objective_function(unsigned n, const double * x, double * grad, void * data);
 
-    static nlopt::algorithm methodToAlgorithm(const std::string & method);
+    static nlopt::algorithm methodToAlgorithm(const std::string & method, nlopt::algorithm defaultAlgorithm);
  };
  #endif // COPASI_USE_NLOPT
 

@@ -93,8 +93,28 @@ void COptMethodNLopt::initObjects()
   
   assertParameter("Population Size", CCopasiParameter::Type::UINT, (unsigned C_INT32) 0);
 
-  assertParameter("Local Optimization Algorithm", CCopasiParameter::Type::STRING, NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD]);
-  getParameter("Local Optimization Algorithm")->setValidValues(NLOptMethods);
+  mpLocalMethod = assertParameter("Local Optimization Algorithm", CCopasiParameter::Type::STRING, std::string("None"));
+
+  std::vector< std::pair< std::string, std::string > > ValidValues = {
+    {  "None", "None"},
+    // local derivative-free
+  { "COBYLA (Constrained Optimization BY Linear Approximations)", "COBYLA (Constrained Optimization BY Linear Approximations)"},
+  { "BOBYQA","BOBYQA"},
+  {  "NEWUOA+", "NEWUOA+"},
+  { "PRAXIS (PRincipal AXIS)", "PRAXIS (PRincipal AXIS)"},
+  { "Nelder-Mead Simplex", "Nelder-Mead Simplex"},
+  { "Sbplx (based on Subplex)", "Sbplx (based on Subplex)"},
+  // local gradient-based
+  { "MMA (Method of Moving Asymptotes)", "MMA (Method of Moving Asymptotes)"},
+  { "SLSQP (Sequential Least Squares Programming)", "SLSQP (Sequential Least Squares Programming)"},
+  { "Low-storage BFGS", "Low-storage BFGS"},
+  { "Truncated Newton", "Truncated Newton"},
+  { "Truncated Newton Restart", "Truncated Newton Restart"},
+  { "Truncated Newton Preconditioned", "Truncated Newton Preconditioned"},
+  };
+
+
+  getParameter("Local Optimization Algorithm")->setValidValues(ValidValues);
 }
 
 /**
@@ -206,9 +226,9 @@ bool COptMethodNLopt::initialize()
 }
 
 
-nlopt::algorithm COptMethodNLopt::methodToAlgorithm(const std::string & method)
+nlopt::algorithm COptMethodNLopt::methodToAlgorithm(const std::string & method, nlopt::algorithm defaultAlgorithm)
 {
-  nlopt::algorithm alg = nlopt::LN_NELDERMEAD;
+  nlopt::algorithm alg = defaultAlgorithm;
   if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::NELDER_MEAD])
     alg = nlopt::LN_NELDERMEAD;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::PRAXIS])
@@ -251,12 +271,28 @@ nlopt::algorithm COptMethodNLopt::methodToAlgorithm(const std::string & method)
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MLSL_LDS])
     alg = nlopt::GN_MLSL_LDS;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::AUGLAG])
-    alg = nlopt::AUGLAG;
+    alg = nlopt::LN_AUGLAG;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ESCH])
     alg = nlopt::GN_ESCH;
 
 
   return alg;
+}
+
+bool needsDerivatives(nlopt::algorithm alg)
+{
+  switch (alg)
+    {
+      case nlopt::LD_LBFGS:
+      case nlopt::LD_TNEWTON:
+      case nlopt::LD_TNEWTON_RESTART:
+      case nlopt::LD_TNEWTON_PRECOND:
+      case nlopt::LD_MMA:
+      case nlopt::LD_SLSQP:
+        return true;
+      default:
+        return false;
+    }
 }
 
 /**
@@ -303,12 +339,42 @@ bool COptMethodNLopt::optimise()
   // Set up NLopt optimizer
   try
     {
-      auto alg = methodToAlgorithm(*mpNloptMethod);
+      auto localAlg = methodToAlgorithm(*mpLocalMethod, nlopt::NUM_ALGORITHMS);
+      auto alg = methodToAlgorithm(*mpNloptMethod, nlopt::LN_NELDERMEAD);
+      bool localNeedsDerivatives = needsDerivatives(localAlg);
+      bool needToSetLocal = false;
+      if (localNeedsDerivatives && localAlg != nlopt::NUM_ALGORITHMS)
+        {
+          switch (alg)
+            {
+            case nlopt::GN_MLSL:
+              alg = nlopt::GD_MLSL;
+              needToSetLocal = true;
+              break;
+            case nlopt::GN_MLSL_LDS:
+              alg = nlopt::GD_MLSL_LDS;
+              needToSetLocal = true; 
+              break;
+            case nlopt::AUGLAG:
+              alg = nlopt::LD_AUGLAG;
+              needToSetLocal = true;
+              break;
+            default:
+              break;
+            }
+        }
+
       nlopt::opt opt(alg, mVariableSize);
 
       if (mLogVerbosity > 0)
         mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
 
+      if (needToSetLocal)
+        {
+          opt.set_local_optimizer(nlopt::opt(localAlg, mVariableSize));
+          if (mLogVerbosity > 0)
+            mMethodLog.enterLogEntry(COptLogEntry("Using local optimizer: " + std::string( nlopt::algorithm_name(localAlg))));
+        }
 
       // Set lower and upper bounds
       std::vector<double> lower_bounds(mVariableSize);
