@@ -481,7 +481,7 @@ endif()
 find_package(ICONV)
 
 # optionally link against nlopt
-option(COPASI_USE_NLOPT "Use NLopt for optimization" OFF)
+option(COPASI_USE_NLOPT "Use NLopt for optimization" ON)
 if (COPASI_USE_NLOPT)
 find_package(NLopt REQUIRED)
 endif()
@@ -1044,6 +1044,7 @@ message(STATUS "-----------------------------------------------------------
    Time Sensitivities task  = ${ENABLE_TIME_SENS}
    JIT Compilation          = ${ENABLE_JIT}
    OpenMP                   = ${ENABLE_OMP}
+   NLopt                    = ${COPASI_USE_NLOPT}
 
    CXX Flags                = ${CMAKE_CXX_FLAGS}
    Additional Defines       = ${DirDefs}
