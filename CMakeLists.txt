@@ -1028,6 +1028,10 @@ message(STATUS "-----------------------------------------------------------
    OpenMP Libs          = ${OpenMP_C_LIB_NAMES}
    OpenMP CXX Flags     = ${OpenMP_CXX_FLAGS}
 
+   NLopt lib            = ${NLOPT_LIBRARIES}
+   NLopt include        = ${NLOPT_INCLUDE_DIRS}
+
+
  Options:
 
    COPASI_EXTUNIT           = ${ENABLE_COPASI_EXTUNIT}

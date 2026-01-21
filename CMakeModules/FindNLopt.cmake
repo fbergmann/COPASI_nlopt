@@ -8,7 +8,7 @@ find_package(NLopt CONFIG QUIET
         ${${_PROJECT_DEPENDENCY_DIR}}/${CMAKE_INSTALL_LIBDIR}/cmake
         ${${_PROJECT_DEPENDENCY_DIR}}/lib/cmake
         /usr/${CMAKE_INSTALL_LIBDIR}/cmake
-        ${CONAN_LIB_DIRS_CPUFEATURES}/cmake
+        ${CONAN_LIB_DIRS_NLOPT}/cmake
     PATH_SUFFIXES nlopt
     NO_DEFAULT_PATH
 )
@@ -22,6 +22,63 @@ find_package(NLopt CONFIG QUIET
         ${CONAN_LIB_DIRS_NLOPT}/cmake
     PATH_SUFFIXES nlopt
 )
+
+if (NOT NLOPT_INCLUDE_DIRS)
+  
+find_path(NLOPT_INCLUDE_DIRS nlopt.hpp
+PATHS ${${_PROJECT_DEPENDENCY_DIR}}
+      ${${_PROJECT_DEPENDENCY_DIR}}/include
+      /opt/include
+      CMAKE_FIND_ROOT_PATH_BOTH
+NO_DEFAULT_PATH)
+
+if (NOT NLOPT_INCLUDE_DIRS)
+find_path(NLOPT_INCLUDE_DIRS nlopt.hpp)
+endif (NOT NLOPT_INCLUDE_DIRS)
+
+
+if (NOT NLOPT_INCLUDE_DIRS)
+message(FATAL_ERROR "NLOPT include dir not found not found!")
+endif (NOT NLOPT_INCLUDE_DIRS)
+
+
+find_library(NLOPT_LIBRARIES 
+NAMES nlopt-static 
+      nlopt
+      libnlopt-static 
+      libnlopt
+PATHS ${${_PROJECT_DEPENDENCY_DIR}}
+      ${${_PROJECT_DEPENDENCY_DIR}}
+      ${${_PROJECT_DEPENDENCY_DIR}}/${CMAKE_INSTALL_LIBDIR}
+      ${CONAN_LIB_DIRS_NLOPT}
+      ~/Library/Frameworks
+      /Library/Frameworks
+      /sw/lib        # Fink
+      /opt/local/lib # MacPorts
+      /opt/csw/lib   # Blastwave
+      /opt/lib
+      /usr/freeware/lib64
+      CMAKE_FIND_ROOT_PATH_BOTH
+      NO_DEFAULT_PATH)
+
+if (NOT NLOPT_LIBRARIES)
+find_library(NLOPT_LIBRARIES 
+    NAMES nlopt-static nlopt
+)
+endif (NOT NLOPT_LIBRARIES)
+
+if (NOT NLOPT_LIBRARIES)
+  message(FATAL_ERROR "NLOPT library not found!")
+endif (NOT NLOPT_LIBRARIES)
+
+add_library(NLopt::nlopt UNKNOWN IMPORTED)
+set_target_properties(NLopt::nlopt 
+  PROPERTIES
+  IMPORTED_LOCATION ${NLOPT_LIBRARIES}
+  INTERFACE_INCLUDE_DIRECTORIES ${NLOPT_INCLUDE_DIRS}
+)
+
+endif()
 
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(NLopt REQUIRED NLOPT_INCLUDE_DIRS NLOPT_LIBRARIES)
