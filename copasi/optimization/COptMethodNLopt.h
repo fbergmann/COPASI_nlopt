@@ -90,6 +90,9 @@
    double * mpRtolObjective;
    double * mpRtolParameters;
 
+   double * mpAtolObjective;
+   double * mpAtolParameters;
+
    /**
     * population size
     */

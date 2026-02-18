@@ -90,7 +90,12 @@ void COptMethodNLopt::initObjects()
   
   mpRtolObjective = assertParameter("Relative Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
   mpRtolParameters = assertParameter("Relative Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);  
-  
+
+  mpAtolObjective = assertParameter("Absolute Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+  mpAtolParameters = assertParameter("Absolute Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);  
+
+  assertParameter("Initial Step Size", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+
   assertParameter("Population Size", CCopasiParameter::Type::UINT, (unsigned C_INT32) 0);
 
   mpLocalMethod = assertParameter("Local Optimization Algorithm", CCopasiParameter::Type::STRING, std::string("None"));
@@ -115,6 +120,14 @@ void COptMethodNLopt::initObjects()
 
 
   getParameter("Local Optimization Algorithm")->setValidValues(ValidValues);
+
+  assertParameter("Local Max FnEvals", CCopasiParameter::Type::INT, 0);
+
+  assertParameter("Local Relative Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+  assertParameter("Local Relative Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+
+  assertParameter("Local Absolute Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+  assertParameter("Local Absolute Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
 }
 
 /**
@@ -310,8 +323,7 @@ bool COptMethodNLopt::optimise()
 
   if (!initialize()) return false;
 
-  if (mLogVerbosity > 0)
-    mMethodLog.enterLogEntry(
+  mMethodLog.enterLogEntry(
       COptLogEntry(
         "Algorithm started.",
         "For more information about this method see: http://copasi.org/Support/User_Manual/Methods/Optimization_Methods/NLopt/"
@@ -342,7 +354,7 @@ bool COptMethodNLopt::optimise()
       auto localAlg = methodToAlgorithm(*mpLocalMethod, nlopt::NUM_ALGORITHMS);
       auto alg = methodToAlgorithm(*mpNloptMethod, nlopt::LN_NELDERMEAD);
       bool localNeedsDerivatives = needsDerivatives(localAlg);
-      bool needToSetLocal = false;
+      bool needToSetLocal = localAlg != nlopt::NUM_ALGORITHMS;
       if (localNeedsDerivatives && localAlg != nlopt::NUM_ALGORITHMS)
         {
           switch (alg)
@@ -366,15 +378,7 @@ bool COptMethodNLopt::optimise()
 
       nlopt::opt opt(alg, mVariableSize);
 
-      if (mLogVerbosity > 0)
-        mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
-
-      if (needToSetLocal)
-        {
-          opt.set_local_optimizer(nlopt::opt(localAlg, mVariableSize));
-          if (mLogVerbosity > 0)
-            mMethodLog.enterLogEntry(COptLogEntry("Using local optimizer: " + std::string( nlopt::algorithm_name(localAlg))));
-        }
+      mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
 
       // Set lower and upper bounds
       std::vector<double> lower_bounds(mVariableSize);
@@ -397,6 +401,34 @@ bool COptMethodNLopt::optimise()
       // Set the objective function
       opt.set_min_objective(nlopt_objective_function, this);
       
+      double initialStepSize = getValue< double >("Initial Step Size");
+      if (std::isfinite(initialStepSize))
+        opt.set_initial_step(initialStepSize);
+
+      
+      if (needToSetLocal)
+        {
+          auto local = nlopt::opt(localAlg, mVariableSize);
+          local.set_lower_bounds(lower_bounds);
+          local.set_upper_bounds(upper_bounds);
+
+
+          local.set_ftol_rel(getValue< double >("Local Relative Tolerance Objective"));
+          local.set_xtol_rel(getValue< double >("Local Relative Tolerance Parameters"));
+
+          local.set_ftol_abs(getValue< double >("Local Absolute Tolerance Objective"));
+          local.set_xtol_abs(getValue< double >("Local Absolute Tolerance Parameters"));
+
+          local.set_maxeval(getValue< int >("Local Max FnEvals"));
+
+          // Set the objective function
+          local.set_min_objective(nlopt_objective_function, this);
+      
+          opt.set_local_optimizer(local);
+          mMethodLog.enterLogEntry(COptLogEntry("Using local optimizer: " + std::string(nlopt::algorithm_name(localAlg))));
+        }
+
+
       // Set stopping criteria
       opt.set_maxeval(mIterations);
 
@@ -407,10 +439,14 @@ bool COptMethodNLopt::optimise()
       // set relative tolerance on function value
       if (std::isfinite(*mpRtolObjective))
       opt.set_ftol_rel(*mpRtolObjective);
+      if (std::isfinite(*mpAtolObjective))
+        opt.set_ftol_abs(*mpAtolObjective);
       
       // set relative tolerance on optimization parameters
       if (std::isfinite(*mpRtolParameters))
       opt.set_xtol_rel(*mpRtolParameters);
+      if (std::isfinite(*mpAtolParameters))
+        opt.set_xtol_abs(*mpAtolParameters);
       
       // Run the optimization
       double minf;
@@ -468,9 +504,7 @@ bool COptMethodNLopt::optimise()
     }
   catch (std::exception &e)
     {
-      if (mLogVerbosity > 0)
-        mMethodLog.enterLogEntry(COptLogEntry("NLopt error", e.what()));
-      
+      mMethodLog.enterLogEntry(COptLogEntry("NLopt error", e.what()));      
       return false;
     }
 }
