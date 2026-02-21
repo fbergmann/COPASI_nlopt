@@ -102,6 +102,9 @@
 
    std::string * mpLocalMethod;
 
+   bool mDidThrow {false};
+   
+   bool *mpMonitorOnImprovement;
    
   enum NLoptMethodType
    {

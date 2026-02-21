@@ -121,13 +121,16 @@ void COptMethodNLopt::initObjects()
 
   getParameter("Local Optimization Algorithm")->setValidValues(ValidValues);
 
-  assertParameter("Local Max FnEvals", CCopasiParameter::Type::INT, 0);
+  assertParameter("Local Max FnEvals", CCopasiParameter::Type::INT, -1);
 
   assertParameter("Local Relative Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
   assertParameter("Local Relative Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
 
   assertParameter("Local Absolute Tolerance Objective", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
   assertParameter("Local Absolute Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
+  
+  mpMonitorOnImprovement = assertParameter("Monitor only on improvement", CCopasiParameter::Type::BOOL, true);
+
 }
 
 /**
@@ -160,6 +163,17 @@ bool COptMethodNLopt::initialize()
   // Cast the data pointer back to COptMethodNLopt
   COptMethodNLopt *method = static_cast<COptMethodNLopt *>(data);
   
+  if (!method->proceed())
+  {
+    if (!method->mDidThrow)
+    {
+      method->mDidThrow = true;
+      throw nlopt::forced_stop();
+    }
+    return HUGE_VAL;
+  }
+  
+  
   // Get the optimization problem context
   COptProblem *problem =  method->mProblemContext.active();
   const std::vector<COptItem *> &optItems = problem->getOptItemList(true);
@@ -170,7 +184,7 @@ bool COptMethodNLopt::initialize()
     {
       double value = x[i];
       method->mIndividual[i] = value;
-      validPoint &= optItems[i]->setItemValue(value, COptItem::CheckPolicyFlag::All);
+      validPoint &= optItems[i]->setItemValue(value, COptItem::CheckPolicyFlag::None);
     }
   
   // If point is invalid, return a large penalty value
@@ -179,15 +193,6 @@ bool COptMethodNLopt::initialize()
       return std::numeric_limits<double>::max();
     }
 
-  if (!method->proceed())
-  {
-    // Tell NLopt to stop by returning a special value
-    // NLopt expects the objective function to return a special value to signal forced stop.
-    // For most algorithms, returning "NAN" (not-a-number) indicates forced termination (nlopt_result = NLOPT_FORCED_STOP).
-    return std::numeric_limits<double>::quiet_NaN();
-
-  }
-  
   // Evaluate the objective function
   C_FLOAT64 value = method->evaluate(COptMethod::EvaluationPolicy::Constraints);
 
@@ -228,11 +233,14 @@ bool COptMethodNLopt::initialize()
 
   method->mValue = value;
 
+  if (!method->mpMonitorOnImprovement)
   method->mpParentTask->output(COutputInterface::MONITORING);
   
   if (value < method->getBestValue())
     {
       method->setSolution(value, method->mIndividual, true);
+      if (method->mpMonitorOnImprovement)
+      method->mpParentTask->output(COutputInterface::MONITORING);
     }
 
   return value;
@@ -320,6 +328,8 @@ bool COptMethodNLopt::optimise()
 
   // current value is the initial guess
   bool pointInParameterDomain = true;
+  
+  mDidThrow = false;
 
   if (!initialize()) return false;
 
@@ -376,7 +386,7 @@ bool COptMethodNLopt::optimise()
             }
         }
 
-      nlopt::opt opt(alg, mVariableSize);
+      nlopt::opt opt(alg, (int)mVariableSize);
 
       mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
 
@@ -408,18 +418,27 @@ bool COptMethodNLopt::optimise()
       
       if (needToSetLocal)
         {
-          auto local = nlopt::opt(localAlg, mVariableSize);
+          auto local = nlopt::opt(localAlg, (int)mVariableSize);
           local.set_lower_bounds(lower_bounds);
           local.set_upper_bounds(upper_bounds);
 
+          double value = getValue< double >("Local Relative Tolerance Objective");
+          if (std::isfinite(value))
+          local.set_ftol_rel(value);
+          value = getValue< double >("Local Relative Tolerance Parameters");
+          if (std::isfinite(value))
+          local.set_xtol_rel(value);
 
-          local.set_ftol_rel(getValue< double >("Local Relative Tolerance Objective"));
-          local.set_xtol_rel(getValue< double >("Local Relative Tolerance Parameters"));
+          value = getValue< double >("Local Absolute Tolerance Objective");
+          if (std::isfinite(value))
+          local.set_ftol_abs(value);
+          value = getValue< double >("Local Absolute Tolerance Parameters");
+          if (std::isfinite(value))
+          local.set_xtol_abs(value);
 
-          local.set_ftol_abs(getValue< double >("Local Absolute Tolerance Objective"));
-          local.set_xtol_abs(getValue< double >("Local Absolute Tolerance Parameters"));
-
-          local.set_maxeval(getValue< int >("Local Max FnEvals"));
+          int nValue =getValue< int >("Local Max FnEvals");
+          if (nValue >=0)
+          local.set_maxeval(nValue);
 
           // Set the objective function
           local.set_min_objective(nlopt_objective_function, this);
@@ -449,8 +468,22 @@ bool COptMethodNLopt::optimise()
         opt.set_xtol_abs(*mpAtolParameters);
       
       // Run the optimization
-      double minf;
+      double minf = mValue;
       nlopt::result result = opt.optimize(initial_values, minf);
+      
+//      
+//      try {
+//        std::stringstream init_step;
+//        init_step << "[";
+//        for (double v : opt.get_initial_step())
+//          init_step << v << ",";
+//        init_step << "]";
+//        
+//        
+//        mMethodLog.enterLogEntry(COptLogEntry("Used initial step: " + init_step.str()));
+//        
+//      } catch (...) {
+//      }
       
       // Update the solution with NLopt's result
       for (j = 0; j < mVariableSize; j++)
