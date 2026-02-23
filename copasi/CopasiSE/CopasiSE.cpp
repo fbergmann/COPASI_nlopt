@@ -929,7 +929,7 @@ void writeTaskSpec(const CCopasiTask& task, const std::string& jsonFile)
 
   // include all method information
   j["method_name"] = task.getMethod()->getObjectName();
-  j["method"] = CProfileSettings::toJson(task.getMethod()); 
+  j["method"] = CProfileSettings::toJson(task.getMethod(), true, true);
 
   std::ofstream fs(CLocaleString::fromUtf8(jsonFile).c_str());
   if (!fs.good())

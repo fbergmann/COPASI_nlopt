@@ -37,7 +37,7 @@ public:
   /**
    * serializes the given parameter group to JSON
    */
-  static nlohmann::json toJson(const CCopasiParameterGroup * group, bool basic_only = true);
+  static nlohmann::json toJson(const CCopasiParameterGroup * group, bool basic_only = true, bool specialAsString=false);
 
   /**
    * overwrites parameters in the given parameter group from the provided JSON object

@@ -22,7 +22,7 @@
  *
  *  :return: json object with the values
  */
-nlohmann::json CProfileSettings::toJson(const CCopasiParameterGroup * group, bool basic_only /*= true*/)
+nlohmann::json CProfileSettings::toJson(const CCopasiParameterGroup * group, bool basic_only /*= true*/, bool specialAsString /*  =false */)
 {
   nlohmann::json result = {};
   if (!group)
@@ -87,10 +87,22 @@ nlohmann::json CProfileSettings::toJson(const CCopasiParameterGroup * group, boo
         result[name] = param->getValue< C_INT32 >();
       else if (param_type == CCopasiParameter::Type::UINT)
         result[name] = param->getValue< C_UINT32 >();
-      else if (param_type == CCopasiParameter::Type::DOUBLE)
-        result[name] = param->getValue< C_FLOAT64 >();
-      else if (param_type == CCopasiParameter::Type::UDOUBLE)
-        result[name] = param->getValue< C_FLOAT64 >();
+      else if (param_type == CCopasiParameter::Type::DOUBLE ||
+               param_type == CCopasiParameter::Type::UDOUBLE)
+      {
+        std::string sVal = param->getValue<std::string>();
+        double val = param->getValue< C_FLOAT64 >();
+        if (specialAsString && std::isnan(val))
+        {
+          result[name] = "nan";
+        }
+        else if (specialAsString && !std::isfinite(val))
+        {
+          result[name] = val < 0 ? "-inf" : "inf";
+        }
+        else
+        result[name] = val;
+      }
       else if (param_type == CCopasiParameter::Type::BOOL)
         result[name] = param->getValue< bool >();
       else if (param_type == CCopasiParameter::Type::CN)
@@ -154,10 +166,27 @@ CProfileSettings::fromJson(CCopasiParameterGroup* group, const nlohmann::json& o
         param->setValue< C_INT32 >(object.at(name).get< C_INT32 >());
       else if (param_type == CCopasiParameter::Type::UINT)
         param->setValue< C_UINT32 >(object.at(name).get< C_UINT32 >());
-      else if (param_type == CCopasiParameter::Type::DOUBLE)
-        param->setValue< C_FLOAT64 >(object.at(name).get< C_FLOAT64 >());
-      else if (param_type == CCopasiParameter::Type::UDOUBLE)
-        param->setValue< C_FLOAT64 >(object.at(name).get< C_FLOAT64 >());
+      else if (param_type == CCopasiParameter::Type::DOUBLE || param_type == CCopasiParameter::Type::UDOUBLE)
+      {
+        if (object.at(name).is_string())
+        {
+          std::string sVal = object.at(name).get< std::string >();
+          if (sVal == "nan" || sVal == "NAN")
+            param->setValue< C_FLOAT64 >(std::numeric_limits<double>::quiet_NaN());
+          else if (sVal == "inf" || sVal == "INF")
+            param->setValue< C_FLOAT64 >(std::numeric_limits<double>::infinity());
+          else if (sVal == "-inf" || sVal == "-INF")
+            param->setValue< C_FLOAT64 >(std::numeric_limits<double>::infinity());
+          else
+            param->setValue< C_FLOAT64 >(std::strtod(sVal.c_str(),NULL));
+        }
+        else{
+          param->setValue< C_FLOAT64 >(object.at(name).get< C_FLOAT64 >());
+        }
+        
+        
+        
+      }
       else if (param_type == CCopasiParameter::Type::BOOL)
         param->setValue< bool >(object.at(name).get< bool >());
       else if (param_type == CCopasiParameter::Type::CN)
