@@ -212,20 +212,7 @@ CCopasiXMLInterface::DBL::DBL(const char * value):
 {
   if (!value || !*value) return;
 
-  std::istringstream in;
-
-  in.imbue(std::locale::classic());
-  in.str(value);
-
-  in >> mValue;
-
-  if (std::isnan(mValue))
-    {
-      if (!strcmp(value, "INF"))
-        mValue = std::numeric_limits<C_FLOAT64>::infinity();
-      else if (!strcmp(value, "-INF"))
-        mValue = - std::numeric_limits<C_FLOAT64>::infinity();
-    }
+  mValue = std::strtod(value, NULL);
 
   return;
 }
