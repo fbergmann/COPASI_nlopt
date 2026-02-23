@@ -90,7 +90,6 @@ nlohmann::json CProfileSettings::toJson(const CCopasiParameterGroup * group, boo
       else if (param_type == CCopasiParameter::Type::DOUBLE ||
                param_type == CCopasiParameter::Type::UDOUBLE)
       {
-        std::string sVal = param->getValue<std::string>();
         double val = param->getValue< C_FLOAT64 >();
         if (specialAsString && std::isnan(val))
         {
