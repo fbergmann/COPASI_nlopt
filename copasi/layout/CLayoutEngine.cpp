@@ -20,6 +20,9 @@
 #include "CLayoutEngine.h"
 #include "CAbstractLayoutInterface.h"
 
+#include <copasi/utilities/json.hpp>
+
+
 CLayoutEngine::CLayoutEngine(CAbstractLayoutInterface * l, bool /* so */)
   : mpLayout(l)
   , mSecondOrder(false)
@@ -138,6 +141,184 @@ void CLayoutEngine::calcForces(std::vector<double> & state, std::vector<double> 
     }
 }
 
+// include msvc debug header to debug print 
+//#include <windows.h>
+//
+//void debugPrint(const std::string& message)
+//{
+//  OutputDebugStringA(message.c_str());
+//}
+
+//#define debugPrint(msg) {std::cout << msg;}
+#define debugPrint(msg) {}
+
+
+#include <nlopt.hpp>
+double CLayoutEngine::nlopt_objective_function(unsigned n, const double * x, double * grad, void * data)
+{
+  
+  // Cast the data pointer back
+  CLayoutEngine * pThis = static_cast< CLayoutEngine * >(data);
+  
+  if (pThis->mStopRequested || !pThis->mpLayout)
+    {
+      throw nlopt::forced_stop();      
+    }
+
+
+  auto vars = std::vector< double >(x, x + n);
+  auto backup = pThis->mVariables;
+  
+
+  pThis->mVariables = vars;
+
+  if (grad)
+  {
+    std::vector<double> forces; forces.resize(n);
+    pThis->calcForces(vars, forces);
+    for (size_t i = 0; i < n; ++i)
+    {
+        grad[i] = -forces[i];
+    }
+  }
+
+  
+  pThis->mpLayout->setState(pThis->mVariables);
+  double value = pThis->mpLayout->getPotential();
+
+  if (value < pThis->mInitialPot)
+  {
+      if (pThis->mStopAfterNthImprovement > 0)
+      {
+          pThis->mStopAfterNthImprovement--;
+      }
+
+      if (pThis->mStopAfterNthImprovement == 0)
+      {
+          pThis->mStopRequested = true;
+      }
+  }
+  
+  return value;
+}
+
+double CLayoutEngine::stepNlopt(const std::string& algorithmName, const std::string & jsonConfig)
+{
+  if (!mpLayout) return -1.0;
+  mStopRequested = false;
+  size_t i, imax = mVariables.size();
+  
+// parse json config
+  nlohmann::json config = nlohmann::json::parse(jsonConfig, nullptr, false, true);
+
+  int algorithm = nlopt_algorithm_from_string(algorithmName.c_str());
+  // if json contains algorithm, parse from name
+  if (config.contains("algorithm")) {
+      if (config["algorithm"].is_string())
+        algorithm = nlopt_algorithm_from_string(config["algorithm"].get< std::string >().c_str());
+      else
+        algorithm = config["algorithm"].get<int>();
+  }
+
+  int maxeval;
+  if (config.contains("maxeval")) {
+    maxeval = config["maxeval"].get<int>();
+  }
+  else {
+    maxeval = 20000;
+  }
+
+  if (config.contains("stopAfterNthImprovement"))
+    {
+      mStopAfterNthImprovement = config["stopAfterNthImprovement"].get< int >();
+    }
+  else
+  {
+      mStopAfterNthImprovement = -1;
+  }
+
+  // store state
+  std::vector<double> initialState(mVariables);
+
+  // evaluate initial potential
+  mpLayout->setState(mVariables);
+  mInitialPot = mpLayout->getPotential();
+  debugPrint("initial potential: " + std::to_string(mInitialPot) + "\n");
+  // setup bounds
+  double lowerBound = 0;
+  double upperBound = 10000;
+  if (config.contains("lowerBound") && config["lowerBound"].get< double >() != -1.0)
+    {
+    lowerBound = config["lowerBound"].get<double>();
+  }
+  if (config.contains("upperBound") && config["lowerBound"].get< double >() != -1.0)
+    {
+    upperBound = config["upperBound"].get<double>();
+  }
+  std::vector<double> lowerBounds(imax, lowerBound);
+  std::vector<double> upperBounds(imax, upperBound);
+
+  double multiplier = 1; 
+  if (config.contains("multiplier")) {
+    multiplier = config["multiplier"].get<double>();
+  }
+  if (multiplier != 0)
+    {
+      for (i = 0; i < imax; ++i)
+        {
+          lowerBounds[i] = mVariables[i] - mVariables[i] * multiplier;
+          upperBounds[i] = mVariables[i] + mVariables[i] * multiplier;
+        }
+    }
+
+  // optimize 
+  std::vector<double> x(mVariables);
+
+  nlopt::opt opt((nlopt::algorithm)algorithm, (unsigned)imax);
+  debugPrint(std::string("algorithm: ") + opt.get_algorithm_name());
+  //opt.set_xtol_rel(1e-4);
+  //opt.set_ftol_rel(1e-4);
+  opt.set_maxeval(maxeval);
+  opt.set_lower_bounds(lowerBounds);
+  opt.set_upper_bounds(upperBounds);
+
+  if (config.contains("initialStep") && config["initialStep"].get<double>() != 0)
+    opt.set_initial_step(config["initialStep"].get< double >());
+
+
+
+  opt.set_min_objective(nlopt_objective_function, this);
+
+  double minf = -1.0;
+  nlopt::result result = (nlopt::result) - 1;
+  try
+  {
+      result = opt.optimize(x, minf);
+    }
+  catch (std::exception & e)
+    {
+      debugPrint("NLopt failed: " + std::string(e.what()) + "\n");      
+    }
+  
+  
+
+  if (result < 0 || minf > mInitialPot) {
+      debugPrint("NLopt optimization failed or did not improve potential. Result: " + std::to_string(result) + " minf: " + std::to_string(minf) + "\n");
+    mVariables = initialState;
+      return mInitialPot;
+  }
+
+  debugPrint("NLopt optimization succeeded. Result: " + std::to_string(result) + " minf: " + std::to_string(minf) + "\n");
+
+  for (i = 0; i < imax; ++i)
+    {
+      mVariables[i] = x[i];
+    }
+
+  return minf;
+
+}
+
 double CLayoutEngine::step()
 {
   if (!mpLayout) return -1.0;
@@ -186,9 +367,10 @@ double CLayoutEngine::step()
   return newpot;
 }
 
-void CLayoutEngine::stepIntegration()
+double CLayoutEngine::stepIntegration()
 {
-  if (!mpLayout) return;
+  if (!mpLayout)
+    return -1.0;
 
   const double dt = 0.2;
 
@@ -232,6 +414,7 @@ void CLayoutEngine::stepIntegration()
     }
 
   mpLayout->setState(mVariables);
+  return mpLayout->getPotential();
 }
 
 void CLayoutEngine::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)

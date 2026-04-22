@@ -105,6 +105,14 @@ public:
       max.push_back(1e3);
       isLog.push_back(true);
 
+       //8
+      names.push_back("number iterations");
+      values.push_back(1e5);
+      min.push_back(1);
+      max.push_back(1e10);
+      isLog.push_back(true);
+
+
       defaultValues = values;
     }
 

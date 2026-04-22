@@ -50,10 +50,19 @@ public:
    */
   void requestStop();
 
+  double stepNlopt(const std::string & algorithmName, const std::string & jsonOptions);
 
 protected:
+  double stepIntegration();
 
-  void stepIntegration();
+  double mInitialPot;
+
+  int mStopAfterNthImprovement;
+
+
+   static double nlopt_objective_function(unsigned n, const double * x, double * grad, void * data);
+
+
 
   CAbstractLayoutInterface * mpLayout;
 

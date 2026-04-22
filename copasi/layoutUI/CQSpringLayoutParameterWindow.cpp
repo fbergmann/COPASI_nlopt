@@ -20,6 +20,25 @@
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QPlainTextEdit>
+
+#include <QComboBox>
+
+#include <nlopt.hpp>
+
+QComboBox* createComboBox(QWidget* parent)
+{
+  QComboBox* combo = new QComboBox(parent);
+  combo->addItem("Default");
+  
+  for (size_t i = 0; i < nlopt::algorithm::NUM_ALGORITHMS; ++i)
+    {
+      const char * name = nlopt_algorithm_to_string((nlopt_algorithm) i);
+      combo->addItem(name);
+    }
+
+  return combo;
+}
 
 CQSpringLayoutParameterWindow::CQSpringLayoutParameterWindow(const QString &title, QWidget *parent, Qt::WindowFlags flags)
   : QDockWidget(title, parent, flags)
@@ -60,7 +79,10 @@ CQSpringLayoutParameterWindow::CQSpringLayoutParameterWindow(const QString &titl
         {
 
           slider->setScale(mLayoutParameters.min[i], mLayoutParameters.max[i]);
-          slider->setValue(log10(mLayoutParameters.values[i]));
+          if (i == 8) // dont need the log value here
+            slider->setValue(mLayoutParameters.values[i]);
+          else
+            slider->setValue(log10(mLayoutParameters.values[i]));
         }
       else
         {
@@ -73,6 +95,14 @@ CQSpringLayoutParameterWindow::CQSpringLayoutParameterWindow(const QString &titl
       connect(slider, SIGNAL(valueChanged(double)), this, SLOT(slotLayoutSliderChanged()));
     }
 
+  mpAlgorithm = createComboBox(pParaWidget);
+  pLayout->addWidget(mpAlgorithm);
+
+  mpJsonEdit = new QPlainTextEdit(pParaWidget);
+  mpJsonEdit->setPlainText("{\n 'maxeval':10000,\n 'lowerBound':0,\n 'upperBound':10000,\n 'multiplier':0,\n 'initialStep':0,\n 'stopAfterNthImprovement':0\n}");
+  connect(mpJsonEdit, SIGNAL(textChanged()), this, SLOT(textChanged()));
+  pLayout->addWidget(mpJsonEdit);
+
   setWidget(pParaWidget);
   setVisible(false);
 }
@@ -84,6 +114,21 @@ CQSpringLayoutParameterWindow::~CQSpringLayoutParameterWindow()
 CCopasiSpringLayout::Parameters& CQSpringLayoutParameterWindow::getLayoutParameters()
 {
   return mLayoutParameters;
+}
+
+std::string CQSpringLayoutParameterWindow::getAlgorithm() const
+{
+  return mpAlgorithm->currentText().toStdString();
+}
+
+const std::string & CQSpringLayoutParameterWindow::getJSon()
+{
+  return mJson;
+}
+
+void CQSpringLayoutParameterWindow::textChanged()
+{
+  mJson = mpJsonEdit->toPlainText().trimmed().toStdString();
 }
 
 void CQSpringLayoutParameterWindow::slotLayoutSliderChanged()

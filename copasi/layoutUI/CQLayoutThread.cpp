@@ -148,6 +148,11 @@ void CQLayoutThread::run()
   qint64 tick, last = 0;
   double pot, oldPot = -1.0;
 
+  //oldPot = mpCurrent->getPotential();
+
+
+  mNumIterations = int(mpParameterWindow->getLayoutParameters().values[8]);
+
   for (; (i < mNumIterations) && (mStopLayout) == false; ++i)
     {
       mSync.lock();
@@ -162,7 +167,12 @@ void CQLayoutThread::run()
           break;
         }
 
+      std::string algorithm = mpParameterWindow->getAlgorithm();
+      auto &jsonConfig = mpParameterWindow->getJSon();
+      if (algorithm.empty() || algorithm == "Default" || jsonConfig.empty())
       pot = le.step();
+      else
+        pot = le.stepNlopt(algorithm, jsonConfig);
 
       // no more working on the layout, release lock
       mSync.unlock();

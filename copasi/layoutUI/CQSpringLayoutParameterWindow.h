@@ -23,7 +23,12 @@
 
 #include <copasi/layout/CCopasiSpringLayout.h>
 
+
+
 class QwtSlider;
+class QComboBox;
+class QPlainTextEdit;
+
 class CQSpringLayoutParameterWindow : public QDockWidget
 {
   Q_OBJECT
@@ -32,11 +37,21 @@ public:
   virtual ~CQSpringLayoutParameterWindow();
   CCopasiSpringLayout::Parameters& getLayoutParameters();
 
+  
+  std::string getAlgorithm() const;
+  const std::string & getJSon();
+
 protected slots:
   void slotLayoutSliderChanged();
+  void textChanged();
+
 protected:
   std::vector<QwtSlider*> mLayoutSliders;
   CCopasiSpringLayout::Parameters mLayoutParameters;
+  std::string mJson;
+  QPlainTextEdit * mpJsonEdit;
+  QComboBox * mpAlgorithm;
+
 };
 
 #endif
