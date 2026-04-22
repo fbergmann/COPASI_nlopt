@@ -62,6 +62,10 @@
 #include <nlopt.h>
 #endif
 
+#ifdef COPASI_USE_NLOPT
+#include <nlopt.h>
+#endif
+
 const char *AboutDialog::text =
   "<h2>COPASI %1</h2>"
   "<p>"
@@ -143,6 +147,15 @@ QString AboutDialog::getDefaultVersionText()
 #ifdef ENABLE_OMP
   additionalVersion += QString("<li>%1 </li>").arg(FROM_UTF8(COpenMPConfig::Info()));
 #endif
+
+#ifdef COPASI_USE_NLOPT
+  {
+    int major, minor, bugfix;
+    nlopt_version(&major, &minor, &bugfix);
+    additionalVersion += QString("<li>NLopt %1.%2.%3</li>").arg(major).arg(minor).arg(bugfix);
+  }
+#endif
+
 
   return QString(AboutDialog::text)
          .arg(FROM_UTF8(CVersion::VERSION.getVersion()))            // 1
