@@ -20,11 +20,18 @@ const CEnumAnnotation< std::string, COptMethodNLopt::NLoptMethodType > COptMetho
   {
     // global
     "DIRECT (Dividing RECTangles)",
+    "DIRECT-NOSCAL (Dividing RECTangles, no scaling)",
+    "DIRECT-ORIG (Dividing RECTangles, original)",
     "DIRECTL (DIRECT with Local Biasing)",
+    "DIRECTL-ORIG (DIRECT with Local Biasing, original)",
+    "DIRECTL-RAND (DIRECT with Local Biasing and randomization)",
+    "DIRECTL-NOSCAL (DIRECT with Local Biasing and no scaling)",
+    "DIRECTL-RAND-NOSCAL (DIRECT with Local Biasing, randomization and no scaling)",
     "CRS (Controlled Random Search)",
     "MLSL (Multi-Level Single Linkage)",
     "MLSL_LDS (Multi-Level Single Linkage with Low Discrepancy Sampling)",
     "StoGO (Stochastic Global Optimization)",
+    "StoGO_RAND (Stochastic Global Optimization, Randomized)",
     "AGS (Adaptive Global Search)",
     "ISRES (Improved Stochastic Ranking Evolution Strategy)",
     "ESCH (evolutionary algorithm)",
@@ -32,19 +39,64 @@ const CEnumAnnotation< std::string, COptMethodNLopt::NLoptMethodType > COptMetho
     "COBYLA (Constrained Optimization BY Linear Approximations)",
     "BOBYQA",
     "NEWUOA+",
+    "NEWUOA+ (bound constraints)",
     "PRAXIS (PRincipal AXIS)",
     "Nelder-Mead Simplex",
     "Sbplx (based on Subplex)",
     // local gradient-based
     "MMA (Method of Moving Asymptotes)",
+    "CCSAQ (conservative convex separable approximation, quadratic)",
     "SLSQP (Sequential Least Squares Programming)",
     "Low-storage BFGS",
+    "VAR1 (Shifted limited-memory variable-metric)",
+    "VAR2 (Shifted limited-memory variable-metric)",
     "Truncated Newton",
     "Truncated Newton Restart",
     "Truncated Newton Preconditioned",
+    "Truncated Newton Preconditioned with Restart",
     // hybrid
     "AUGLAG (Augmented Lagrangian algorithm)",
   });
+
+
+std::map< int, std::vector< std::pair< std::string, double > > > _additionalOptions = {
+  {NLOPT_GN_DIRECT, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_DIRECT_L, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_DIRECT_L_RAND, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_DIRECT_NOSCAL, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_DIRECT_L_NOSCAL, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_DIRECT_L_RAND_NOSCAL, {{"magic_eps", 0.0}}},
+  {NLOPT_GN_ORIG_DIRECT, {{"magic_eps", 0}, {"magic_eps_abs", 0}, {"sigma_reltol", -1}, {"fglobal_reltol", 0}}},
+  {NLOPT_LN_PRAXIS, {{"t0_tol", 0}}},
+  {NLOPT_LD_LBFGS, {{"tolg", 0}}},
+  {NLOPT_LD_VAR1, {{"tolg", 0}}},
+  {NLOPT_LD_VAR2, {{"tolg", 0}}},
+  {NLOPT_LD_TNEWTON, {{"tolg", 0}}},
+  {NLOPT_LD_TNEWTON_RESTART, {{"tolg", 0}}},
+  {NLOPT_LD_TNEWTON_PRECOND, {{"tolg", 0}}},
+  {NLOPT_LD_TNEWTON_PRECOND_RESTART, {{"tolg", 0}}},
+  {NLOPT_LD_MMA, {
+                   {"inner_maxeval", 0},
+                   {"verbosity", 0},
+                   {"rho_init", 1},
+                   {"dual_ftol_rel", 1e-14},
+                   {"dual_ftol_abs", 0},
+                   {"dual_xtol_rel", 0},
+                   {"dual_xtol_abs", 0},
+                   {"dual_maxeval", 100000},
+                 }},
+  {NLOPT_LD_CCSAQ, {
+                     {"inner_maxeval", 0},
+                     {"verbosity", 0},
+                     {"rho_init", 1},
+                     {"dual_ftol_rel", 1e-14},
+                     {"dual_ftol_abs", 0},
+                     {"dual_xtol_rel", 0},
+                     {"dual_xtol_abs", 0},
+                     {"dual_maxeval", 100000},
+                   }},
+
+};
 
 COptMethodNLopt::COptMethodNLopt(const CDataContainer * pParent,
                              const CTaskEnum::Method & methodType,
@@ -105,17 +157,22 @@ void COptMethodNLopt::initObjects()
     // local derivative-free
   { "COBYLA (Constrained Optimization BY Linear Approximations)", "COBYLA (Constrained Optimization BY Linear Approximations)"},
   { "BOBYQA","BOBYQA"},
-  {  "NEWUOA+", "NEWUOA+"},
+  { "NEWUOA+", "NEWUOA+"},
+  { "NEWUOA+ (bound constraints)", "NEWUOA+ (bound constraints)"},
   { "PRAXIS (PRincipal AXIS)", "PRAXIS (PRincipal AXIS)"},
   { "Nelder-Mead Simplex", "Nelder-Mead Simplex"},
   { "Sbplx (based on Subplex)", "Sbplx (based on Subplex)"},
   // local gradient-based
   { "MMA (Method of Moving Asymptotes)", "MMA (Method of Moving Asymptotes)"},
+  { "CCSAQ (conservative convex separable approximation, quadratic)", "CCSAQ (conservative convex separable approximation, quadratic)"},
   { "SLSQP (Sequential Least Squares Programming)", "SLSQP (Sequential Least Squares Programming)"},
   { "Low-storage BFGS", "Low-storage BFGS"},
+  { "VAR1 (Shifted limited-memory variable-metric)", "VAR1 (Shifted limited-memory variable-metric)"},
+  { "VAR2 (Shifted limited-memory variable-metric)", "VAR2 (Shifted limited-memory variable-metric)"},
   { "Truncated Newton", "Truncated Newton"},
   { "Truncated Newton Restart", "Truncated Newton Restart"},
   { "Truncated Newton Preconditioned", "Truncated Newton Preconditioned"},
+  { "Truncated Newton Preconditioned with Restart", "Truncated Newton Preconditioned with Restart"},
   };
 
 
@@ -130,6 +187,8 @@ void COptMethodNLopt::initObjects()
   assertParameter("Local Absolute Tolerance Parameters", CCopasiParameter::Type::DOUBLE, HUGE_VAL);
   
   mpMonitorOnImprovement = assertParameter("Monitor only on improvement", CCopasiParameter::Type::BOOL, true);
+
+  assertParameter("Additional Options (delimited)", CCopasiParameter::Type::STRING, std::string(""));
 
 }
 
@@ -260,39 +319,62 @@ nlopt::algorithm COptMethodNLopt::methodToAlgorithm(const std::string & method, 
     alg = nlopt::GN_ISRES;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::LBFGS])
     alg = nlopt::LD_LBFGS;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::VAR1])
+    alg = nlopt::LD_VAR1;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::VAR2])
+    alg = nlopt::LD_VAR2;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON])
     alg = nlopt::LD_TNEWTON;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_RESTART])
     alg = nlopt::LD_TNEWTON_RESTART;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_PRECOND])
     alg = nlopt::LD_TNEWTON_PRECOND;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::TRUNCATED_NEWTON_PRECOND_RESTART])
+    alg = nlopt::LD_TNEWTON_PRECOND_RESTART;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::COBYLA])
     alg = nlopt::LN_COBYLA;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::BOBYQA])
     alg = nlopt::LN_BOBYQA;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::NEWUOA])
     alg = nlopt::LN_NEWUOA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::NEWUOA_BOUND])
+    alg = nlopt::LN_NEWUOA_BOUND;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MMA])
     alg = nlopt::LD_MMA;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::CCSAQ])
+    alg = nlopt::LD_CCSAQ;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::SLSQP])
     alg = nlopt::LD_SLSQP;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT])
     alg = nlopt::GN_DIRECT;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT_NOSCAL])
+    alg = nlopt::GN_DIRECT_NOSCAL;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ORIG_DIRECT])
+    alg = nlopt::GN_ORIG_DIRECT;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECTL])
     alg = nlopt::GN_DIRECT_L;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ORIG_DIRECT_L])
+    alg = nlopt::GN_ORIG_DIRECT_L;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT_L_RAND])
+    alg = nlopt::GN_DIRECT_L_RAND;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT_L_NOSCAL])
+    alg = nlopt::GN_DIRECT_L_NOSCAL;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::DIRECT_L_RAND_NOSCAL])
+    alg = nlopt::GN_DIRECT_L_RAND_NOSCAL;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::CRS])
     alg = nlopt::GN_CRS2_LM;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::StoGO])
     alg = nlopt::GD_STOGO;
+  else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::StoGO_RAND])
+    alg = nlopt::GD_STOGO_RAND;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::AGS])
     alg = nlopt::GN_AGS;
-
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MLSL])
     alg = nlopt::GN_MLSL;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::MLSL_LDS])
     alg = nlopt::GN_MLSL_LDS;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::AUGLAG])
-    alg = nlopt::LN_AUGLAG;
+    alg = nlopt::AUGLAG;
   else if (method == NLOptMethods[COptMethodNLopt::NLoptMethodType::ESCH])
     alg = nlopt::GN_ESCH;
 
@@ -308,13 +390,72 @@ bool needsDerivatives(nlopt::algorithm alg)
       case nlopt::LD_TNEWTON:
       case nlopt::LD_TNEWTON_RESTART:
       case nlopt::LD_TNEWTON_PRECOND:
+      case nlopt::LD_TNEWTON_PRECOND_RESTART:
       case nlopt::LD_MMA:
       case nlopt::LD_SLSQP:
+      case nlopt::LD_CCSAQ:
         return true;
       default:
         return false;
     }
 }
+
+#include <copasi/utilities/CParameterEstimationUtils.h>
+
+void applyAdditionalOptions(nlopt::opt& optimizer, const std::string & additionalOptions)
+{
+  // split additionalOptions by ';' or ',' and apply each option to the nlopt::opt object
+  std::vector< std::string > options;
+  ResultParser::split(additionalOptions, ",;", options);
+
+  auto params = _additionalOptions[(int) optimizer.get_algorithm()];
+  if (params.empty())
+    {
+      CCopasiMessage(CCopasiMessage::Type::EXCEPTION, "NLopt algorithm %s, has no additional options", optimizer.get_algorithm_name());
+    }
+
+  for (const std::string & option : options)
+    {
+    if (option == "help")
+      {
+        std::stringstream str;
+        str << std::endl;
+        for (auto& param : params)
+        {
+            str << param.first << " = " << param.second << "; " << std::endl;
+        }
+
+        CCopasiMessage(CCopasiMessage::Type::EXCEPTION, "NLopt algorithm %s, has the following options: %s",  optimizer.get_algorithm_name(), str.str().c_str());
+      }
+
+      // split option into key and value by '='
+      size_t pos = option.find('=');
+      if (pos == std::string::npos)
+        {
+          // invalid option format, skip
+          continue;
+        }
+      std::string key = ResultParser::trim(option.substr(0, pos));
+      std::string value = ResultParser::trim(option.substr(pos + 1));
+
+      // find key in param
+      auto it = std::find_if(params.begin(), params.end(),
+                             [&](const auto & p) { return p.first == key; });
+
+      if (it == params.end())
+      {
+        // invalid option key, skip
+        CCopasiMessage(CCopasiMessage::Type::WARNING, "NLopt does not recognize the additional option key: %s", key.c_str());
+        continue;
+      }
+
+      optimizer.set_param(key.c_str(), std::stod(value));
+    }
+
+}
+
+
+
 
 /**
  * Optimizer Function
@@ -378,6 +519,7 @@ bool COptMethodNLopt::optimise()
               needToSetLocal = true; 
               break;
             case nlopt::AUGLAG:
+            case nlopt::LN_AUGLAG:
               alg = nlopt::LD_AUGLAG;
               needToSetLocal = true;
               break;
@@ -387,6 +529,12 @@ bool COptMethodNLopt::optimise()
         }
 
       nlopt::opt opt(alg, (int)mVariableSize);
+
+      std::string additionalOptions = getValue< std::string >("Additional Options (delimited)");
+      if (!additionalOptions.empty())
+        {
+          applyAdditionalOptions(opt, additionalOptions);
+        }
 
       mMethodLog.enterLogEntry(COptLogEntry(nlopt::algorithm_name(alg)));
 
