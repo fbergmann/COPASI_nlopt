@@ -21,6 +21,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QScrollArea>
 
 #include <QComboBox>
 
@@ -99,11 +100,24 @@ CQSpringLayoutParameterWindow::CQSpringLayoutParameterWindow(const QString &titl
   pLayout->addWidget(mpAlgorithm);
 
   mpJsonEdit = new QPlainTextEdit(pParaWidget);
-  mpJsonEdit->setPlainText("{\n 'maxeval':10000,\n 'lowerBound':0,\n 'upperBound':10000,\n 'multiplier':0,\n 'initialStep':0,\n 'stopAfterNthImprovement':0\n}");
   connect(mpJsonEdit, SIGNAL(textChanged()), this, SLOT(textChanged()));
+  mpJsonEdit->setPlainText(R"({
+    "maxeval":5000,
+    "lowerBound":0,
+    "upperBound":10000,
+    "multiplier":0,
+    "initialStep":200,
+    "stopAfterNthImprovement":0,
+    "ftol_rel":0,
+    "ftol_abs":0
+  })");
   pLayout->addWidget(mpJsonEdit);
 
-  setWidget(pParaWidget);
+  QScrollArea* pScrollArea = new QScrollArea(this);
+  pScrollArea->setWidgetResizable(true);
+  pScrollArea->setWidget(pParaWidget);
+  
+  setWidget(pScrollArea);
   setVisible(false);
 }
 
@@ -123,6 +137,7 @@ std::string CQSpringLayoutParameterWindow::getAlgorithm() const
 
 const std::string & CQSpringLayoutParameterWindow::getJSon()
 {
+  mJson = mpJsonEdit->toPlainText().trimmed().toStdString();
   return mJson;
 }
 
