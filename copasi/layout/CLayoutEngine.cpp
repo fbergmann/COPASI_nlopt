@@ -202,24 +202,34 @@ double CLayoutEngine::nlopt_objective_function(unsigned n, const double * x, dou
   return value;
 }
 
-double CLayoutEngine::stepNlopt(const std::string& algorithmName, const std::string & jsonConfig)
+#include <copasi/utilities/CCopasiMessage.h>
+
+void CLayoutEngine::setupNlopt(const std::string& algorithmName, const std::string & jsonConfig)
 {
   if (!mpLayout) return -1.0;
   mStopRequested = false;
   size_t i, imax = mVariables.size();
   
-// parse json config
-  nlohmann::json config = nlohmann::json::parse(jsonConfig, nullptr, false, true);
-
+  // parse json config
+  nlohmann::json config;
+  try
+  {
+    config = nlohmann::json::parse(jsonConfig);
+  }
+  catch(std::exception& e)
+  {
+    CCopasiMessage(CCopasiMessage::EXCEPTION, "Invalid JSON : %s",e.what());
+  }
+  
   int algorithm = nlopt_algorithm_from_string(algorithmName.c_str());
   // if json contains algorithm, parse from name
   if (config.contains("algorithm")) {
-      if (config["algorithm"].is_string())
-        algorithm = nlopt_algorithm_from_string(config["algorithm"].get< std::string >().c_str());
-      else
-        algorithm = config["algorithm"].get<int>();
+    if (config["algorithm"].is_string())
+      algorithm = nlopt_algorithm_from_string(config["algorithm"].get< std::string >().c_str());
+    else
+      algorithm = config["algorithm"].get<int>();
   }
-
+  
   int maxeval;
   if (config.contains("maxeval")) {
     maxeval = config["maxeval"].get<int>();
@@ -227,19 +237,19 @@ double CLayoutEngine::stepNlopt(const std::string& algorithmName, const std::str
   else {
     maxeval = 20000;
   }
-
+  
   if (config.contains("stopAfterNthImprovement"))
-    {
-      mStopAfterNthImprovement = config["stopAfterNthImprovement"].get< int >();
-    }
+  {
+    mDefaultStopAfterNthImprovement = config["stopAfterNthImprovement"].get< int >();
+  }
   else
   {
-      mStopAfterNthImprovement = -1;
+    mDefaultStopAfterNthImprovement = -1;
   }
-
+  
   // store state
   std::vector<double> initialState(mVariables);
-
+  
   // evaluate initial potential
   mpLayout->setState(mVariables);
   mInitialPot = mpLayout->getPotential();
@@ -247,73 +257,108 @@ double CLayoutEngine::stepNlopt(const std::string& algorithmName, const std::str
   // setup bounds
   double lowerBound = 0;
   double upperBound = 10000;
-  if (config.contains("lowerBound") && config["lowerBound"].get< double >() != -1.0)
-    {
+  if (config.contains("lowerBound"))
+  {
     lowerBound = config["lowerBound"].get<double>();
   }
-  if (config.contains("upperBound") && config["lowerBound"].get< double >() != -1.0)
-    {
+  if (config.contains("upperBound"))
+  {
     upperBound = config["upperBound"].get<double>();
   }
   std::vector<double> lowerBounds(imax, lowerBound);
   std::vector<double> upperBounds(imax, upperBound);
-
-  double multiplier = 1; 
+  
+  double multiplier = 0;
   if (config.contains("multiplier")) {
     multiplier = config["multiplier"].get<double>();
   }
   if (multiplier != 0)
+  {
+    for (i = 0; i < imax; ++i)
     {
-      for (i = 0; i < imax; ++i)
-        {
-          lowerBounds[i] = mVariables[i] - mVariables[i] * multiplier;
-          upperBounds[i] = mVariables[i] + mVariables[i] * multiplier;
-        }
+      lowerBounds[i] = mVariables[i] - mVariables[i] * multiplier;
+      upperBounds[i] = mVariables[i] + mVariables[i] * multiplier;
     }
-
-  // optimize 
-  std::vector<double> x(mVariables);
-
-  nlopt::opt opt((nlopt::algorithm)algorithm, (unsigned)imax);
-  debugPrint(std::string("algorithm: ") + opt.get_algorithm_name());
-  //opt.set_xtol_rel(1e-4);
-  //opt.set_ftol_rel(1e-4);
-  opt.set_maxeval(maxeval);
-  opt.set_lower_bounds(lowerBounds);
-  opt.set_upper_bounds(upperBounds);
-
+  }
+  
+  // optimize
+  
+  mOpt = new nlopt::opt((nlopt::algorithm)algorithm, (unsigned)imax);
+  debugPrint(std::string("algorithm: ") + mOpt.get_algorithm_name());
+  if (config.contains("ftol_rel") && config["ftol_rel"].get<double>() != 0)
+    mOpt->set_ftol_rel(config["ftol_rel"].get<double>());
+  if (config.contains("ftol_abs") && config["ftol_abs"].get<double>() != 0)
+    mOpt->set_ftol_abs(config["ftol_abs"].get<double>());
+  mOpt->set_maxeval(maxeval);
+  if (lowerBound != -1)
+    mOpt->set_lower_bounds(lowerBounds);
+  if (upperBound != -1)
+    mOpt->set_upper_bounds(upperBounds);
+  
   if (config.contains("initialStep") && config["initialStep"].get<double>() != 0)
-    opt.set_initial_step(config["initialStep"].get< double >());
+    mOpt->set_initial_step(config["initialStep"].get< double >());
+  
+  
+  if (config.contains("local_alg"))
+  {
+    int localAlg = 0;
+    if (config.contains("local_alg")) {
+      if (config["local_alg"].is_string())
+        localAlg = nlopt_algorithm_from_string(config["local_alg"].get< std::string >().c_str());
+      else
+        localAlg = config["local_alg"].get<int>();
+    }
+    mLocal = new nlopt::opt((nlopt::algorithm)localAlg, (unsigned)imax);
+    mOpt->set_local_optimizer(*mLocal);
+  }
+  
+  mOpt->set_min_objective(nlopt_objective_function, this);
+  
+}
 
+void CLayoutEngine::freeNlopt()
+{
+  pdelete (mOpt);
+  pdelete(mLocal);
+}
 
+double CLayoutEngine::stepNlopt()
+{
+  mStopRequested = false;
+  mStopAfterNthImprovement = mDefaultStopAfterNthImprovement;
+  // store state
+  std::vector<double> initialState(mVariables);
+  
+  // evaluate initial potential
+  mpLayout->setState(mVariables);
+  mInitialPot = mpLayout->getPotential();
 
-  opt.set_min_objective(nlopt_objective_function, this);
-
+  
+  
   double minf = -1.0;
   nlopt::result result = (nlopt::result) - 1;
+  std::vector<double> x(mVariables);
+
   try
   {
-      result = opt.optimize(x, minf);
+      result = mOpt->optimize(x, minf);
     }
   catch (std::exception & e)
     {
       debugPrint("NLopt failed: " + std::string(e.what()) + "\n");      
     }
   
-  
+  bool wasFailure = result < 0 && mOpt->last_optimize_result()	!= nlopt::FORCED_STOP;
 
-  if (result < 0 || minf > mInitialPot) {
+  if (wasFailure || minf > mInitialPot) {
       debugPrint("NLopt optimization failed or did not improve potential. Result: " + std::to_string(result) + " minf: " + std::to_string(minf) + "\n");
-    mVariables = initialState;
+      mVariables = initialState;
       return mInitialPot;
   }
 
   debugPrint("NLopt optimization succeeded. Result: " + std::to_string(result) + " minf: " + std::to_string(minf) + "\n");
 
-  for (i = 0; i < imax; ++i)
-    {
-      mVariables[i] = x[i];
-    }
+  mVariables = x;
 
   return minf;
 

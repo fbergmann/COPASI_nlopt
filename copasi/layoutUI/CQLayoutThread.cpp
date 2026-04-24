@@ -88,13 +88,13 @@ CQLayoutThread::~CQLayoutThread()
   pdelete(mpParameterWindow);
 }
 
-void CQLayoutThread::randomizeLayout(CLayout* layout)
+void CQLayoutThread::randomizeLayout(CLayout* layout, const CLDimensions* pBounds)
 {
   if (layout == NULL || mpParameterWindow == NULL)
     return;
 
   CCopasiSpringLayout l(layout, &mpParameterWindow->getLayoutParameters());
-  l.randomize();
+  l.randomize(pBounds);
 
   emit layoutStateChanged(QSharedPointer<CLayoutState>(new CLayoutState(layout)));
   emit layoutUpdated();
@@ -125,6 +125,9 @@ void CQLayoutThread::stopLayout()
   mPauseCond.wakeAll();
 }
 
+#include <copasi/utilities/CCopasiException.h>
+#include <copasi/UI/CQMessageBox.h>
+
 void CQLayoutThread::run()
 {
   if (mpCurrentLayout == NULL)
@@ -152,54 +155,69 @@ void CQLayoutThread::run()
 
 
   mNumIterations = int(mpParameterWindow->getLayoutParameters().values[8]);
+  try{
+    
+    std::string algorithm = mpParameterWindow->getAlgorithm();
+    auto &jsonConfig = mpParameterWindow->getJSon();
+    bool useNlopt = !(algorithm.empty() || algorithm == "Default");
 
-  for (; (i < mNumIterations) && (mStopLayout) == false; ++i)
+    if (useNlopt)
+      le.setupNlopt(algorithm, jsonConfig);
+    
+    for (; (i < mNumIterations) && (mStopLayout) == false; ++i)
     {
       mSync.lock();
-
+      
       if (mPause)
         mPauseCond.wait(&mSync);
-
+      
       //test again, in case we should stop after the pause
       if (mStopLayout)
-        {
-          mSync.unlock();
-          break;
-        }
-
-      std::string algorithm = mpParameterWindow->getAlgorithm();
-      auto &jsonConfig = mpParameterWindow->getJSon();
-      if (algorithm.empty() || algorithm == "Default" || jsonConfig.empty())
-      pot = le.step();
+      {
+        mSync.unlock();
+        break;
+      }
+      
+      if (useNlopt)
+        pot = le.stepNlopt();
       else
-        pot = le.stepNlopt(algorithm, jsonConfig);
-
+        pot = le.step();
+      
       // no more working on the layout, release lock
       mSync.unlock();
-
+      
       if (pot == 0.0 || fabs((pot - oldPot) / pot) < 1e-9)
-        {
-          break;
-        }
+      {
+        break;
+      }
       else
-        {
-          oldPot = pot;
-        }
-
+      {
+        oldPot = pot;
+      }
+      
       tick = QDateTime::currentMSecsSinceEpoch();
-
+      
       if (mUpdateWait != 0 && (tick - last > mUpdateWait))
-        {
-          last = tick;
-
-          // calculate new curves and emit state
-          finalize();
-
-          emit layoutStateChanged(QSharedPointer<CLayoutState>(new CLayoutState(mpCurrentLayout)));
-          emit layoutUpdated();
-        }
+      {
+        last = tick;
+        
+        // calculate new curves and emit state
+        finalize();
+        
+        emit layoutStateChanged(QSharedPointer<CLayoutState>(new CLayoutState(mpCurrentLayout)));
+        emit layoutUpdated();
+      }
     }
-
+    
+    if (useNlopt)
+      le.freeNlopt();
+  }
+  catch(CCopasiException&)
+  {
+    CQMessageBox::critical(NULL, "Error", CCopasiMessage::getAllMessageText().c_str(),
+                           QMessageBox::Ok | QMessageBox::Default, QMessageBox::NoButton);
+    CCopasiMessage::clearDeque();
+  }
   mpCurrentEngine = NULL;
 
   // calculate new curves and emit state

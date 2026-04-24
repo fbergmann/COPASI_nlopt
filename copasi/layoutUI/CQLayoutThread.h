@@ -42,7 +42,7 @@ public:
 
   QDockWidget* getParameterWindow();
 
-  void randomizeLayout(CLayout* layout);
+  void randomizeLayout(CLayout* layout, const CLDimensions* pBounds = NULL);
 
   /**
    * Run the layout algorithm on the given layout

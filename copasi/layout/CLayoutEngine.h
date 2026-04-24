@@ -21,6 +21,8 @@
 
 #include "copasi/odepack++/CLSODA.h"
 
+#include <nlopt.hpp>
+
 class CAbstractLayoutInterface;
 
 class CLayoutEngine
@@ -50,14 +52,24 @@ public:
    */
   void requestStop();
 
-  double stepNlopt(const std::string & algorithmName, const std::string & jsonOptions);
+  double stepNlopt();
 
+  void setupNlopt(const std::string & algorithmName, const std::string & jsonOptions);
+  
+  void freeNlopt();
+
+  
 protected:
   double stepIntegration();
 
   double mInitialPot;
 
   int mStopAfterNthImprovement;
+  
+  int mDefaultStopAfterNthImprovement;
+  
+  nlopt::opt* mOpt;
+  nlopt::opt* mLocal;
 
 
    static double nlopt_objective_function(unsigned n, const double * x, double * grad, void * data);
