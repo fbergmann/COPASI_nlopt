@@ -206,7 +206,11 @@ double CLayoutEngine::nlopt_objective_function(unsigned n, const double * x, dou
 
 void CLayoutEngine::setupNlopt(const std::string& algorithmName, const std::string & jsonConfig)
 {
-  if (!mpLayout) return -1.0;
+  if (!mpLayout) return;
+  
+  pdelete(mOpt);
+  pdelete(mLocal);
+  
   mStopRequested = false;
   size_t i, imax = mVariables.size();
   
@@ -324,6 +328,8 @@ void CLayoutEngine::freeNlopt()
 
 double CLayoutEngine::stepNlopt()
 {
+  if (!mpLayout || !mOpt) return -1.0;
+  
   mStopRequested = false;
   mStopAfterNthImprovement = mDefaultStopAfterNthImprovement;
   // store state
