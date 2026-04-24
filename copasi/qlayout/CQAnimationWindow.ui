@@ -85,6 +85,7 @@
      <string>&amp;Edit</string>
     </property>
     <addaction name="actionRandomize_Layout"/>
+    <addaction name="actionRandomize_LayoutInBounds"/>
     <addaction name="actionAuto_Layout"/>
     <addaction name="separator"/>
     <addaction name="action_Settings"/>
@@ -144,6 +145,11 @@
     <string>Randomize Layout</string>
    </property>
   </action>
+<action name="actionRandomize_LayoutInBounds">
+ <property name="text">
+  <string>Randomize Layout in Bounds</string>
+ </property>
+</action>
   <action name="actionAuto_Layout">
    <property name="checkable">
     <bool>true</bool>
@@ -334,6 +340,22 @@
     </hint>
    </hints>
   </connection>
+<connection>
+ <sender>actionRandomize_LayoutInBounds</sender>
+ <signal>triggered()</signal>
+ <receiver>CQAnimationWindow</receiver>
+ <slot>slotRandomizeLayoutInBounds()</slot>
+ <hints>
+  <hint type="sourcelabel">
+   <x>-1</x>
+   <y>-1</y>
+  </hint>
+  <hint type="destinationlabel">
+   <x>319</x>
+   <y>239</y>
+  </hint>
+ </hints>
+</connection>
  </connections>
  <slots>
   <slot>slotShowStep(int)</slot>
@@ -341,6 +363,7 @@
   <slot>slotEditSettings()</slot>
   <slot>slotSwitchAnimation()</slot>
   <slot>slotRandomizeLayout()</slot>
+  <slot>slotRandomizeLayoutInBounds()</slot>
   <slot>slotAutoLayout()</slot>
  </slots>
 </ui>

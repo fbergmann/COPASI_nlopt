@@ -966,7 +966,7 @@ void placeTextGlyphs(CLayout* pLayout)
  * This function produces a random layout. It first shufles around
  * metab glyphs and reaction centers, and finally corrects all ars
  */
-void CCopasiSpringLayout::randomize()
+void CCopasiSpringLayout::randomize(const CLDimensions* pBounds)
 {
   CRandom* pRandom = CRandom::createGenerator(CRandom::mt19937, CRandom::getSystemSeed());
 
@@ -1000,7 +1000,9 @@ void CCopasiSpringLayout::randomize()
             break;
           }
 
-      if (pCompGlyph)
+      if (pBounds)
+        randomlyPlaceGlyphInDimensions(pMetabGlyph, pBounds, pRandom);
+      else if (pCompGlyph)
         randomlyPlaceGlyphInCompartmentGlyph(pMetabGlyph, pCompGlyph, pRandom);
       else
         randomlyPlaceGlyphInDimensions(pMetabGlyph, &mpLayout->getDimensions(), pRandom);

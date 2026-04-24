@@ -50,6 +50,7 @@ public slots:
   void slotEditSettings();
   void slotSwitchAnimation();
   void slotRandomizeLayout();
+  void slotRandomizeLayoutInBounds();
   void slotAutoLayout();
   void slotStopLayout();
   void slotLayoutStateChanged(QSharedPointer<CLayoutState> state);

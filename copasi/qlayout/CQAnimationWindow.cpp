@@ -650,6 +650,23 @@ void CQAnimationWindow::slotEditSettings()
     }
 }
 
+#include <QInputDialog>
+void CQAnimationWindow::slotRandomizeLayoutInBounds()
+{
+  auto dimensions = QInputDialog::getText(this, "Specify Bounds", "Dimensions:",QLineEdit::Normal, "1000 x 1000");
+  if (dimensions.isEmpty()) return;
+  
+  auto parts = dimensions.split("x");
+  if (parts.length() != 2) return;
+  
+  CLDimensions dim(parts[0].trimmed().toDouble(), parts[1].trimmed().toDouble());
+  
+  mpLayoutThread->stopLayout();
+  mpLayoutThread->wait();
+  CLayoutState::tagLayout(mpScene->getCurrentLayout());
+  mpLayoutThread->randomizeLayout(mpScene->getCurrentLayout(), &dim);
+}
+
 void CQAnimationWindow::slotRandomizeLayout()
 {
   mpLayoutThread->stopLayout();

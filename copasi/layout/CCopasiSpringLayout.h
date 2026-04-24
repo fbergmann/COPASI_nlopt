@@ -154,7 +154,7 @@ public:
   /**
    * Randomizes the layout
    */
-  void randomize();
+  void randomize(const CLDimensions* pBounds=NULL);
 
   /**
    * This method creates a random layout using the elements
